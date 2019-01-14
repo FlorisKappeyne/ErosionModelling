@@ -6,7 +6,7 @@ class Simulation
 {
 public:
 	Simulation(Graphics& gfx, Float viscosity, Float density, 
-		const Vec2I& dim, Float dt);
+		const Vec2I& dim, Float delta_time);
 	~Simulation();
 
 	void Step();
@@ -32,7 +32,13 @@ private:
 	const int nbf; // number of bytes for Float
 	const int nbb; // number of bytes for bool
 	const Float dx, dy;
-	const Float dt_;
+	const Float dt;
+
+	const QF viscosity_qf;
+	const QF density_qf;
+	const QF dx_qf, dy_qf;
+	const QF dx2_qf, dy2_qf;
+	const QF dt_qf;
 
 	Graphics& gfx_;
 

@@ -43,13 +43,25 @@ inline QF mm_set(Float d, Float c, Float b, Float a)
 {
   return _mm256_set_pd(d, c, b, a);
 }
+inline QF mm_set1(Float a)
+{
+	return _mm256_set_pd(a, a, a, a);
+}
 inline QF mm_mul(QF lhs, QF rhs)
 {
   return _mm256_mul_pd(lhs, rhs);
 }
+inline QF mm_div(QF lhs, QF rhs)
+{
+	return _mm256_div_pd(lhs, rhs);
+}
 inline QF mm_sub(QF lhs, QF rhs)
 {
-  return _mm256_sub_pd(lhs, rhs);
+	return _mm256_sub_pd(lhs, rhs);
+}
+inline QF mm_add(QF lhs, QF rhs)
+{
+	return _mm256_add_pd(lhs, rhs);
 }
 inline QF mm_max(QF lhs, QF rhs)
 {
@@ -58,6 +70,14 @@ inline QF mm_max(QF lhs, QF rhs)
 inline QF mm_min(QF lhs, QF rhs)
 {
   return _mm256_min_pd(lhs, rhs);
+}
+inline QF mm_andnot(QF lhs, QF rhs)
+{
+	return _mm256_andnot_pd(lhs, rhs);
+}
+inline QF mm_hadd(QF lhs, QF rhs)
+{
+	return _mm256_hadd_pd(lhs, rhs);
 }
 
 // error allowance
@@ -77,13 +97,25 @@ inline QF mm_set(Float d, Float c, Float b, Float a)
 {
   return _mm_set_ps(d, c, b, a);
 }
+inline QF mm_set1(Float a)
+{
+	return _mm_set_ps1(a);
+}
 inline QF mm_mul(QF lhs, QF rhs)
 {
   return _mm_mul_ps(lhs, rhs);
 }
+inline QF mm_div(QF lhs, QF rhs)
+{
+	return _mm_div_ps(lhs, rhs);
+}
 inline QF mm_sub(QF lhs, QF rhs)
 {
-  return _mm_sub_ps(lhs, rhs);
+	return _mm_sub_ps(lhs, rhs);
+}
+inline QF mm_add(QF lhs, QF rhs)
+{
+	return _mm_add_ps(lhs, rhs);
 }
 inline QF mm_max(QF lhs, QF rhs)
 {
@@ -93,10 +125,45 @@ inline QF mm_min(QF lhs, QF rhs)
 {
   return _mm_min_ps(lhs, rhs);
 }
-
+inline QF mm_andnot(QF lhs, QF rhs)
+{
+	return _mm_andnot_ps(lhs, rhs);
+}
+inline QF mm_hadd(QF lhs, QF rhs)
+{
+	return _mm_hadd_ps(lhs, rhs);
+}
 // error allowance
 static constexpr Float kEpsilon = 1e-4f;
 #endif
+
+// some handy dandy overloads
+inline QF operator*(QF lhs, QF rhs)
+{
+	return mm_mul(lhs, rhs);
+}
+inline QF operator/(QF lhs, QF rhs)
+{
+	return mm_div(lhs, rhs);
+}
+inline QF operator+(QF lhs, QF rhs)
+{
+	return mm_add(lhs, rhs);
+}
+inline QF operator-(QF lhs, QF rhs)
+{
+	return mm_sub(lhs, rhs);
+}
+inline QF mm_abs(QF x) {
+	static const QF sign_mask = mm_set1(-Float(0)); // -0.f = 1 << 31
+	return mm_andnot(sign_mask, x);
+}
+inline Float mm_sum_of_elements(QF vec)
+{
+	vec = mm_hadd(vec, vec);
+	vec = mm_hadd(vec, vec);
+	return ((Float*)&vec)[0];
+}
 
 // some common constants in enough precision
 static constexpr Float kOneF = Float(1);
@@ -115,6 +182,7 @@ static constexpr Float kInvTwoPi = Float(0.15915494309189533576888376337251);
 static constexpr Float kInvFourPi = Float(0.07957747154594766788444188168626);
 
 static constexpr Float kInvLog2 = Float(3.3219280948873623478703194294894);
+
 
 // quick and dirty keycodes
 enum class KeyCode
