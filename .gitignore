@@ -30,3 +30,5 @@
 *.exe
 *.out
 *.app
+/Engine/x64
+/.vs/Chili Framework 2016/v15
