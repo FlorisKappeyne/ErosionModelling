@@ -18,15 +18,19 @@ private:
 	Float GetL1Norm();
 
 private:
-	Cell* cur_cells_;
-	Cell* old_cells_;
+	Float* p, *pn;
+	Float* u, *un;
+	Float* v, *vn;
 	Float* b_;
+	bool* is_solid;
 
 	const Float viscosity_;
 	const Float density_;
 	const Vec2I dim_;
 	const int nx, ny;
-	const int nc;
+	const int nc; // number of cells
+	const int nbf; // number of bytes for Float
+	const int nbb; // number of bytes for bool
 	const Float dx, dy;
 	const Float dt_;
 
