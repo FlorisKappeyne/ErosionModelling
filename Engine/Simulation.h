@@ -25,8 +25,9 @@ private:
 	const Float viscosity_;
 	const Float density_;
 	const Vec2I dim_;
-	const Vec2I ns_;
-	const Vec2 ds_;
+	const int nx, ny;
+	const int nc;
+	const Float dx, dy;
 	const Float dt_;
 
 	Graphics& gfx_;
