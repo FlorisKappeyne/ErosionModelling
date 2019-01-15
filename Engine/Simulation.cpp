@@ -25,6 +25,9 @@ Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 	dx2_qf(mm_set(dx * dx, dx * dx, dx * dx, dx * dx)),
 	dy2_qf(mm_set(dy * dy, dy * dy, dy * dy, dy * dy)),
 	dt_qf(mm_set(dt, dt, dt, dt)),
+	ones(mm_set(Int(-1))),
+	zeros(mm_set(Int(0))),
+	kTwoQF(mm_set(kTwoF)),
 	gfx_(gfx)
 {
 	p = (Float*)_aligned_malloc(nbf, 64);
@@ -86,10 +89,8 @@ void Simulation::Step()
 			{
 				const int idx = y * nx + x;
 
-				if (is_solid[idx] == true)
-				{
+				if (*(int*)&is_solid[idx] == 0x01010101)
 					continue;
-				}
 
 				const QF u_left = *(QF*)&un[idx - 1];
 				const QF u_right = *(QF*)&un[idx + 1];
@@ -101,11 +102,11 @@ void Simulation::Step()
 				const QF v_down = *(QF*)&vn[idx - nx];
 				const QF v_up = *(QF*)&vn[idx + nx];
 
-				*(QF*)&b_[idx] = (density_qf * dx2_qf * dy2_qf) / (mm_set1(kTwoF) * (dx2_qf + dy2_qf))
-					* ((mm_set1(kOneF) / dt_qf) * ((u_right - u_left) / (mm_set1(kTwoF) * dx_qf) + (v_up - v_down) / (mm_set1(kTwoF) * dy_qf))
-						- ((u_right - u_left) / (mm_set1(kTwoF) * dx_qf)) * ((u_right - u_left) / (mm_set1(kTwoF) * dx_qf))
-						- mm_set1(kTwoF) * (((u_up - u_down) / (mm_set1(kTwoF) * dy_qf)) * ((v_right - v_left) / (mm_set1(kTwoF) * dx_qf)))
-						- ((v_up - v_down) / (mm_set1(kTwoF) * dy_qf)) * ((v_up - v_down) / (mm_set1(kTwoF) * dy_qf)));
+				*(QF*)&b_[idx] = (density_qf * dx2_qf * dy2_qf) / (kTwoQF * (dx2_qf + dy2_qf))
+					* ((mm_set(kOneF) / dt_qf) * ((u_right - u_left) / (kTwoQF * dx_qf) + (v_up - v_down) / (kTwoQF * dy_qf))
+						- ((u_right - u_left) / (kTwoQF * dx_qf)) * ((u_right - u_left) / (kTwoQF * dx_qf))
+						- kTwoQF * (((u_up - u_down) / (kTwoQF * dy_qf)) * ((v_right - v_left) / (kTwoQF * dx_qf)))
+						- ((v_up - v_down) / (kTwoQF * dy_qf)) * ((v_up - v_down) / (kTwoQF * dy_qf)));
 			}
 		}
 
@@ -113,9 +114,6 @@ void Simulation::Step()
 		Float l1norm = l1norm_target + kOneF;
 		while (l1norm > l1norm_target)
 		{
-			// update old pressure
-			memcpy(pn, p, nbf);
-
 			/////////////////////////////////////////////////////////////////////////////
 #pragma omp parallel for
 			for (int y = 1; y < ny - 1; ++y)
@@ -124,17 +122,49 @@ void Simulation::Step()
 				{
 					const int idx = y * nx + x;
 
-					//if (is_solid[idx] == true)
-					//	continue;
-					if (is_solid[idx] && is_solid[idx + 1] && is_solid[idx + 2] && is_solid[idx + 3])
+					if (*(int*)&is_solid[idx] == 0x01010101)
 						continue;
-
-					const QF p_left = *(QF*)&pn[idx - 1];
-					const QF p_right = *(QF*)&pn[idx + 1];
-					const QF p_down = *(QF*)&pn[idx - nx];
-					const QF p_up = *(QF*)&pn[idx + nx];
-
-					*(QF*)&p[idx] = ((p_right + p_left) * dy2_qf + (p_up + p_down) * dx2_qf) / (mm_set1(kTwoF) * (dx2_qf + dy2_qf)) - *(QF*)&b_[idx];
+					
+					QF p_centre = *(QF*)&pn[idx];
+					QF p_left = *(QF*)&pn[idx - 1];
+					QF p_right = *(QF*)&pn[idx + 1];
+					QF p_down = *(QF*)&pn[idx - nx];
+					QF p_up = *(QF*)&pn[idx + nx];
+					
+					QI mask_left = mm_set(
+						(Int)is_solid[idx - 1 + 3],
+						(Int)is_solid[idx - 1 + 2],
+						(Int)is_solid[idx - 1 + 1],
+						(Int)is_solid[idx - 1]);
+					mask_left = mm_sub(zeros, mask_left);
+					
+					QI mask_right = mm_set(
+						(Int)is_solid[idx + 1 + 3],
+						(Int)is_solid[idx + 1 + 2],
+						(Int)is_solid[idx + 1 + 1],
+						(Int)is_solid[idx + 1]);
+					mask_right = mm_sub(zeros, mask_right);
+					
+					QI mask_down = mm_set(
+						(Int)is_solid[idx - nx + 3],
+						(Int)is_solid[idx - nx + 2],
+						(Int)is_solid[idx - nx + 1],
+						(Int)is_solid[idx - nx]);
+					mask_down = mm_sub(zeros, mask_down);
+					
+					QI mask_up = mm_set(
+						(Int)is_solid[idx + nx + 3],
+						(Int)is_solid[idx + nx + 2],
+						(Int)is_solid[idx + nx + 1],
+						(Int)is_solid[idx + nx]);
+					mask_up = mm_sub(zeros, mask_up);
+					
+					p_left =  mm_blend(p_left, p_centre, *(QF*)&mask_left);
+					p_right = mm_blend(p_right, p_centre, *(QF*)&mask_right);
+					p_down = mm_blend(p_down, p_centre, *(QF*)&mask_down);
+					p_up = mm_blend(p_up, p_centre, *(QF*)&mask_up);
+					
+					*(QF*)&p[idx] = ((p_right + p_left) * dy2_qf + (p_up + p_down) * dx2_qf) / (kTwoQF * (dx2_qf + dy2_qf)) - *(QF*)&b_[idx];
 				}
 			}
 
@@ -143,6 +173,9 @@ void Simulation::Step()
 
 			// update the l1norm
 			l1norm = GetL1Norm();
+
+			// update old pressure
+			memcpy(pn, p, nbf);
 		}
 
 		/////////////////////////////////////////////////////////////////////////////
@@ -150,46 +183,83 @@ void Simulation::Step()
 #pragma omp parallel for
 		for (int y = 1; y < ny - 1; ++y)
 		{
-			for (int x = 1; x < nx - 1; ++x)
+			for (int x = 1; x < nx - 1; x += 4)
 			{
 				const int idx = y * nx + x;
 
-				const Float u_left = un[idx - 1];
-				const Float u_right = un[idx + 1];
-				const Float u_down = un[idx - nx];
-				const Float u_up = un[idx + nx];
+				if (*(int*)&is_solid[idx] == 0x01010101)
+					continue;
 
-				const Float v_left = vn[idx - 1];
-				const Float v_right = vn[idx + 1];
-				const Float v_down = vn[idx - nx];
-				const Float v_up = vn[idx + nx];
+				const QF u_left =  *(QF*)&un[idx - 1];
+				const QF u_right = *(QF*)&un[idx + 1];
+				const QF u_down =  *(QF*)&un[idx - nx];
+				const QF u_up =    *(QF*)&un[idx + nx];
 
-				const Float p_left = is_solid[idx - 1] ? p[idx] : p[idx - 1];
-				const Float p_right = is_solid[idx + 1] ? p[idx] : p[idx + 1];
-				const Float p_down = is_solid[idx - nx] ? p[idx] : p[idx - nx];
-				const Float p_up = is_solid[idx + nx] ? p[idx] : p[idx + nx];
+				const QF v_left =  *(QF*)&vn[idx - 1];
+				const QF v_right = *(QF*)&vn[idx + 1];
+				const QF v_down =  *(QF*)&vn[idx - nx];
+				const QF v_up =    *(QF*)&vn[idx + nx];
+
+				QF p_centre = *(QF*)&pn[idx];
+				QF p_left = *(QF*)&pn[idx - 1];
+				QF p_right = *(QF*)&pn[idx + 1];
+				QF p_down = *(QF*)&pn[idx - nx];
+				QF p_up = *(QF*)&pn[idx + nx];
+
+				QI mask_left = mm_set(
+					(Int)is_solid[idx - 1 + 3],
+					(Int)is_solid[idx - 1 + 2],
+					(Int)is_solid[idx - 1 + 1],
+					(Int)is_solid[idx - 1]);
+				mask_left = mm_sub(zeros, mask_left);
+
+				QI mask_right = mm_set(
+					(Int)is_solid[idx + 1 + 3],
+					(Int)is_solid[idx + 1 + 2],
+					(Int)is_solid[idx + 1 + 1],
+					(Int)is_solid[idx + 1]);
+				mask_right = mm_sub(zeros, mask_right);
+
+				QI mask_down = mm_set(
+					(Int)is_solid[idx - nx + 3],
+					(Int)is_solid[idx - nx + 2],
+					(Int)is_solid[idx - nx + 1],
+					(Int)is_solid[idx - nx]);
+				mask_down = mm_sub(zeros, mask_down);
+
+				QI mask_up = mm_set(
+					(Int)is_solid[idx + nx + 3],
+					(Int)is_solid[idx + nx + 2],
+					(Int)is_solid[idx + nx + 1],
+					(Int)is_solid[idx + nx]);
+				mask_up = mm_sub(zeros, mask_up);
+
+				p_left = mm_blend(p_left, p_centre, *(QF*)&mask_left);
+				p_right = mm_blend(p_right, p_centre, *(QF*)&mask_right);
+				p_down = mm_blend(p_down, p_centre, *(QF*)&mask_down);
+				p_up = mm_blend(p_up, p_centre, *(QF*)&mask_up);
 
 				// x velocity
-				u[idx] = un[idx]
+				*(QF*)&u[idx] = *(QF*)&un[idx]
 					// convection
-					- un[idx] * (dt / dx) * (un[idx] - u_left)
-					- vn[idx] * (dt / dy) * (un[idx] - u_down)
+					- *(QF*)&un[idx] * (dt_qf / dx_qf) * (*(QF*)&un[idx] - u_left)
+					- *(QF*)&vn[idx] * (dt_qf / dy_qf) * (*(QF*)&un[idx] - u_down)
 					// diffusion
-					+ (viscosity_ * dt / dx2) * (u_right - kTwoF * un[idx] + u_left)
-					+ (viscosity_ * dt / dy2) * (u_up - kTwoF * un[idx] + u_down)
+					+ (viscosity_qf * dt_qf / dx2_qf) * (u_right - kTwoQF * *(QF*)&un[idx] + u_left)
+					+ (viscosity_qf * dt_qf / dy2_qf) * (u_up - kTwoQF *    *(QF*)&un[idx] + u_down)
 					// pressure
-					- dt / (density_ * kTwoF * dx) * (p_right - p_left);
+					- dt_qf / (density_qf * kTwoQF * dx_qf) * (p_right - p_left);
 
 				// y velocity
-				v[idx] = vn[idx]
+				*(QF*)&v[idx] = *(QF*)&vn[idx]
 					// convection
-					- un[idx] * (dt / dx) * (vn[idx] - v_left)
-					- vn[idx] * (dt / dy) * (vn[idx] - v_down)
+					- *(QF*)&un[idx] * (dt_qf / dx_qf) * (*(QF*)&vn[idx] - v_left)
+					- *(QF*)&vn[idx] * (dt_qf / dy_qf) * (*(QF*)&vn[idx] - v_down)
 					// diffusion
-					+ (viscosity_ * dt / dx2) * (v_right - kTwoF * vn[idx] + v_left)
-					+ (viscosity_ * dt / dy2) * (v_up - kTwoF * vn[idx] + v_down)
+					+ (viscosity_qf * dt_qf / dx2_qf) * (v_right - kTwoQF * *(QF*)&vn[idx] + v_left)
+					+ (viscosity_qf * dt_qf / dy2_qf) * (v_up - kTwoQF * *(QF*)&vn[idx] + v_down)
 					// pressure
-					- dt / (density_ * kTwoF * dy) * (p_up - p_down);
+					- dt_qf / (density_qf * kTwoQF * dy_qf) * (p_up - p_down);
 			}
 		}
 	}
@@ -302,23 +372,20 @@ void Simulation::InitField()
 		p[x] = p[x + nx];
 		u[x] = kZeroF;
 		v[x] = kZeroF;
-		is_solid[x] = true;
 
 		p[x + (ny - 1) * nx] = p[x + (ny - 2) * nx];
 		u[x + (ny - 1) * nx] = kZeroF;
 		v[x + (ny - 1) * nx] = kZeroF;
-		is_solid[x + (ny - 1) * nx] = true;
 	}
 	for (int y = 1; y < ny - 1; ++y)
 	{
 		p[y * nx] = const_pressure;
 		u[y * nx] = u[y * nx + 1];
 		v[y * nx] = v[y * nx + 1];
-		is_solid[y * nx] = true;
+		
 		p[y * nx + nx - 1] = -const_pressure;
 		u[y * nx + nx - 1] = u[y * nx + nx - 2];
 		v[y * nx + nx - 1] = v[y * nx + nx - 2];
-		is_solid[y * nx + nx - 1] = true;
 	}
 
 	int
@@ -351,12 +418,12 @@ void Simulation::ResetBoundaryConditions()
 	for (int y = 1; y < ny - 1; ++y)
 	{
 		p[y * nx] = const_pressure;
-		u[y * nx] = u[y * nx + 1];
-		v[y * nx] = v[y * nx + 1];
-
-		u[y * nx + nx - 1] = u[y * nx + nx - 2];
-		v[y * nx + nx - 1] = v[y * nx + nx - 2];
+		u[y * nx] = kZeroF;
+		v[y * nx] = kZeroF;
+		
 		p[y * nx + nx - 1] = -const_pressure;
+		u[y * nx + nx - 1] = kZeroF;
+		v[y * nx + nx - 1] = kZeroF;
 	}
 
 #pragma omp parallel for
@@ -366,81 +433,35 @@ void Simulation::ResetBoundaryConditions()
 		{
 			int idx = y * nx + x;
 
-			if (is_solid[idx] == false)
+			if (*(int*)&is_solid[idx] == 0)
 				continue;
-			//if (!is_solid[idx] && !is_solid[idx + 1] && !is_solid[idx + 2] && !is_solid[idx + 3])
-			//	continue;
 
-			int count = 0;
-			Float avg_pressure = kZeroF;
+			QI mask = mm_set(
+				(Int)is_solid[idx + 3],
+				(Int)is_solid[idx + 2],
+				(Int)is_solid[idx + 1],
+				(Int)is_solid[idx]);
+			mask = mm_sub(zeros, mask);
 
-			// left
-			count += (int)is_solid[idx - 1];
-			avg_pressure += is_solid[idx - 1] ? kZeroF : p[idx - 1];
-
-			// right
-			count += (int)is_solid[idx + 1];
-			avg_pressure += is_solid[idx + 1] ? kZeroF : p[idx + 1];
-
-			// down
-			count += (int)is_solid[idx - nx];
-			avg_pressure += is_solid[idx - nx] ? kZeroF : p[idx - nx];
-
-			// up
-			count += (int)is_solid[idx + nx];
-			avg_pressure += is_solid[idx + nx] ? kZeroF : p[idx + nx];
-
-			if (count == 0)
-			{
-				continue;
-			}
-
-			u[idx] = kZeroF;
-			v[idx] = kZeroF;
-			p[idx] = avg_pressure / (Float)count;
+			*(QF*)&u[idx] = mm_blend(*(QF*)&u[idx], *(QF*)&zeros, *(QF*)&mask);
+			*(QF*)&v[idx] = mm_blend(*(QF*)&v[idx], *(QF*)&zeros, *(QF*)&mask);
 		}
 	}
 }
 
 Float Simulation::GetL1Norm()
 {
-	//*
 	Float sum_diff = kZeroF;
 	Float sum_old = kZeroF;
-	
+
 #pragma omp parallel for default(shared) reduction(+:sum_old, sum_diff)
 	for (int i = 0; i < nc; i += 1)
 	{
-		//if (is_solid[i] == true)
-		//	continue;
-		//if (is_solid[i] && is_solid[i + 1] && is_solid[i + 2] && is_solid[i + 3])
-		//	continue;
-	
 		const Float old = Abs(pn[i]);
 		const Float cur = Abs(p[i]);
 		sum_diff += cur - old;
 		sum_old += old;
 	}
-	
+
 	return sum_diff / sum_old;
-	/*/
-	QF sum_diff = mm_set1(kZeroF);
-	QF sum_old = mm_set1(kZeroF);
-	
-//#pragma omp parallel for default(shared) reduction(+:sum_old, sum_diff)
-	for (int i = 0; i < nc; i += 4)
-	{
-		//if (is_solid[i] == true)
-		//	continue;
-		//if (is_solid[i] && is_solid[i + 1] && is_solid[i + 2] && is_solid[i + 3])
-		//	continue;
-	
-		const QF old = mm_abs(*(QF*)&pn[i]);
-		const QF cur = mm_abs(*(QF*)&p[i]);
-		sum_diff = sum_diff + cur - old;
-		sum_old = sum_old + old;
-	}
-	
-	return mm_sum_of_elements(sum_diff / sum_old);
-	//*/
 }

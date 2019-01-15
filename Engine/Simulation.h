@@ -40,8 +40,11 @@ private:
 	const QF dx2_qf, dy2_qf;
 	const QF dt_qf;
 
+	QI ones = mm_set(Int(-1));
+	QI zeros;
+	QF kTwoQF;
 	Graphics& gfx_;
 
-	static constexpr Float l1norm_target = 1e-3f;
+	static constexpr Float l1norm_target = 1e-2f;
 	static constexpr Float const_pressure = 10.0f;
 };
