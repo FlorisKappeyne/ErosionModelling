@@ -25,7 +25,7 @@ Game::Game(MainWindow& wnd)
 	:
 	wnd(wnd),
 	gfx(wnd),
-	sim_(gfx,8.9e-4f, 997.0f, Vec2I(16, 3), kOneF / (Float)steps_per_second),
+	sim_(gfx,8.9e-4f, 997.0f, Vec2I(16, 16), kOneF / (Float)steps_per_second),
 	steps_per_frame(Max(steps_per_second / 60, 1))
 {
 }

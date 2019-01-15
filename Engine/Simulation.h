@@ -46,5 +46,5 @@ private:
 	Graphics& gfx_;
 
 	static constexpr Float l1norm_target = 1e-2f;
-	static constexpr Float const_pressure = 10.0f;
+	static constexpr Float const_pressure = 100.0f;
 };

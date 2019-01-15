@@ -282,6 +282,11 @@ void Simulation::Draw()
 		for (int x = 0; x < nx; x += 2)
 		{
 			int idx = y * nx + x;
+			if (is_solid[idx])
+			{
+				gfx_.PutPixel(x / 2, ny - y/2 - 1, Colors::Green * 0.5f);
+				continue;
+			}
 			Float inv_delta = 1 / (max_mag - min_mag);
 			Float mag[4] = {
 			 Vec2(u[idx], v[idx]).Magnitude(),
@@ -312,6 +317,11 @@ void Simulation::Draw()
 		for (int x = 0; x < nx; x += 2)
 		{
 			int idx = y * nx + x;
+			if (is_solid[idx])
+			{
+				gfx_.PutPixel(nx / 2 + x / 2, ny - y / 2 - 1, Colors::Gray);
+				continue;
+			}
 			Float inv_delta = 1 / (max_p - min_p);
 			Float pressure[4] = {
 			 p[idx],
@@ -388,19 +398,27 @@ void Simulation::InitField()
 		v[y * nx + nx - 1] = v[y * nx + nx - 2];
 	}
 
-	int
-		min_y = int(ny * 0.1f),
-		max_y = int(ny * 0.8f),
-		min_x = int(nx * 0.1f),
-		max_x = int(nx * 0.125f);
-
-	for (int y = min_y; y < max_y; ++y)
+	for (int y = 1; y < ny - 1; ++y)
 	{
-		for (int x = min_x; x < max_x; ++x)
+		Float height_fraction = Float(y) / Float(ny);
+		for (int x = 1; x < nx - 1; ++x)
 		{
-			u[y * nx + x] = kZeroF;
-			v[y * nx + x] = kZeroF;
-			is_solid[y * nx + x] = true;
+			// control variables
+			const Float periods = kOneF;
+			const Float width = 0.1f;
+			Float fraction = Float(x) / nx;
+			Float height = Sin(fraction * kTwoPi * periods);
+			height *= height;
+			height *= kOneF - kTwoF * width;
+			height += width;
+			if (height_fraction < height - width || height_fraction > height + width)
+			{
+				int idx = y * nx + x;
+
+				is_solid[idx] = true;
+				u[idx] = kZeroF;
+				v[idx] = kZeroF;
+			}
 		}
 	}
 
@@ -418,12 +436,12 @@ void Simulation::ResetBoundaryConditions()
 	for (int y = 1; y < ny - 1; ++y)
 	{
 		p[y * nx] = const_pressure;
-		u[y * nx] = kZeroF;
-		v[y * nx] = kZeroF;
+		u[y * nx] = u[y * nx + 1];
+		v[y * nx] = v[y * nx + 1];
 		
-		p[y * nx + nx - 1] = -const_pressure;
-		u[y * nx + nx - 1] = kZeroF;
-		v[y * nx + nx - 1] = kZeroF;
+		p[y * nx + nx - 1] = -const_pressure;// p[y * nx + nx - 2];
+		u[y * nx + nx - 1] = u[y * nx + nx - 2];
+		v[y * nx + nx - 1] = v[y * nx + nx - 2];
 	}
 
 #pragma omp parallel for
