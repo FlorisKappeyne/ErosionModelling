@@ -15,6 +15,12 @@ public:
 private:
 	void InitField();
 	void ResetBoundaryConditions();
+	void ResetEdges();
+
+	void CalcB();
+	void SolveForPressure();
+	void UpdateVelocities();
+	
 	Float GetL1Norm();
 
 private:
@@ -45,6 +51,6 @@ private:
 	QF kTwoQF;
 	Graphics& gfx_;
 
-	static constexpr Float l1norm_target = 1e-2f;
+	static constexpr Float l1norm_target = 1e-3f;
 	static constexpr Float const_pressure = 100.0f;
 };

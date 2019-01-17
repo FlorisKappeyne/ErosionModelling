@@ -40,11 +40,11 @@ void Game::Go()
 
 void Game::UpdateModel()
 {
-	for (int i = 0; i < steps_per_frame * time_multiplier; ++i)
-	{
-		sim_.Step();
-	}
-	//sim_.Step();
+	//for (int i = 0; i < steps_per_frame * time_multiplier; ++i)
+	//{
+	//	sim_.Step();
+	//}
+	sim_.Step();
 }
 
 void Game::ComposeFrame()
