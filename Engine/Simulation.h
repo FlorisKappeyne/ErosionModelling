@@ -17,11 +17,9 @@ private:
 	void ResetBoundaryConditions();
 	void ResetEdges();
 
-	void CalcB();
 	void SolveForPressure();
 	void UpdateVelocities();
-	
-	Float GetL1Norm();
+	void SubtractPressureGradient();
 
 private:
 	Float* p, *pn;
@@ -32,6 +30,8 @@ private:
 
 	const Float viscosity_;
 	const Float density_;
+	const Float force_u_;
+	const Float force_v_;
 	const Vec2I dim_;
 	const int nx, ny;
 	const int nc; // number of cells
@@ -42,6 +42,8 @@ private:
 
 	const QF viscosity_qf;
 	const QF density_qf;
+	const QF force_u_qf;
+	const QF force_v_qf;
 	const QF dx_qf, dy_qf;
 	const QF dx2_qf, dy2_qf;
 	const QF dt_qf;
@@ -51,6 +53,7 @@ private:
 	QF kTwoQF;
 	Graphics& gfx_;
 
-	static constexpr Float l1norm_target = 1e-3f;
+	static constexpr Float l1norm_target = 1e-4f;
 	static constexpr Float const_pressure = 100.0f;
+	static constexpr int niter_jacobi = 80;
 };

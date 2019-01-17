@@ -40,7 +40,7 @@ private:
 	MainWindow& wnd;
 	Graphics gfx;
 
-	int steps_per_second = 3000;
+	int steps_per_second = 30000;
 	int time_multiplier = 10;
 	int steps_per_frame;
 	Simulation sim_;
