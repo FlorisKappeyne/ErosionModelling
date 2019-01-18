@@ -13,8 +13,8 @@ Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 	:
 	viscosity_(viscosity),
 	density_(density),
-	force_u_(0.5f),
-	force_v_(0.5f),
+	force_u_(2.0f),
+	force_v_(0.0f),
 	dim_(dim),
 	nx(gfx.ScreenWidth),
 	ny(gfx.ScreenHeight),
@@ -228,9 +228,9 @@ void Simulation::InitField()
 
 			// control variables
 			const Float periods = kOneF;
-			const Float width = 0.1f;
-			const Float offset = 0.05f;
-			const int num_sines = 25;
+			const Float width = 0.2f;
+			const Float offset = 0.1f;
+			const int num_sines = 15;
 
 			for (int i = 0; i < num_sines; ++i)
 			{
@@ -290,8 +290,8 @@ void Simulation::ResetEdges()
 		*(QF*)&v[x] = mm_set(kZeroF);
 
 		*(QF*)&p[x + (ny - 1) * nx] = *(QF*)&p[x + (ny - 2) * nx];
-		*(QF*)&p[x + (ny - 1) * nx] = mm_set(kZeroF);
-		*(QF*)&p[x + (ny - 1) * nx] = mm_set(kZeroF);
+		*(QF*)&u[x + (ny - 1) * nx] = mm_set(kZeroF);
+		*(QF*)&v[x + (ny - 1) * nx] = mm_set(kZeroF);
 	}
 
 	for (int y = 1; y < ny - 1; ++y)
@@ -381,7 +381,7 @@ void Simulation::UpdateVelocities()
 				+ (viscosity_qf * dt_qf / dx2_qf) * (u_right - kTwoQF * *(QF*)&un[idx] + u_right)
 				+ (viscosity_qf * dt_qf / dy2_qf) * (u_up - kTwoQF * *(QF*)&un[idx] + u_up)
 				// add forces
-				+ force_u_qf * dt_qf;
+				+ force_u_qf / (dx2_qf * density_qf) * dt_qf;
 				// pressure
 				//- dt_qf / (density_qf * kTwoQF * dx_qf) * (p_right - p_left);
 
@@ -394,7 +394,7 @@ void Simulation::UpdateVelocities()
 				+ (viscosity_qf * dt_qf / dx2_qf) * (v_right - kTwoQF * *(QF*)&vn[idx] + v_right)
 				+ (viscosity_qf * dt_qf / dy2_qf) * (v_up - kTwoQF * *(QF*)&vn[idx] + v_up)
 				// add forces
-				+ force_v_qf * dt_qf;
+				+ force_v_qf / (dx2_qf * density_qf) * dt_qf;
 				// pressure
 				//- dt_qf / (density_qf * kTwoQF * dy_qf) * (p_up - p_down);
 		}
