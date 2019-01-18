@@ -6,7 +6,7 @@ class Simulation
 {
 public:
 	Simulation(Graphics& gfx, Float viscosity, Float density, 
-		const Vec2I& dim, Float delta_time);
+		Float ds, Float delta_time);
 	~Simulation();
 
 	void Step();
@@ -19,6 +19,9 @@ private:
 
 	void SolveForPressure();
 	void UpdateVelocities();
+	void AddForces();
+	void Convect();
+	void Diffuse();
 	void SubtractPressureGradient();
 
 private:
@@ -38,7 +41,8 @@ private:
 	const int nbf; // number of bytes for Float
 	const int nbb; // number of bytes for bool
 	const Float dx, dy;
-	const Float dt;
+	Float dt;
+	Float time_passed;
 
 	const QF viscosity_qf;
 	const QF density_qf;
@@ -46,14 +50,13 @@ private:
 	const QF force_v_qf;
 	const QF dx_qf, dy_qf;
 	const QF dx2_qf, dy2_qf;
-	const QF dt_qf;
+	QF dt_qf;
 
 	QI ones = mm_set(Int(-1));
 	QI zeros;
 	QF kTwoQF;
 	Graphics& gfx_;
 
-	static constexpr Float l1norm_target = 1e-4f;
-	static constexpr Float const_pressure = 100.0f;
+	static constexpr Float const_pressure = 10.0f;
 	static constexpr int niter_jacobi = 80;
 };

@@ -68,6 +68,16 @@ public:
 			(unsigned char)((Float)GetG() * rhs),
 			(unsigned char)((Float)GetB() * rhs));
 	}
+	Color GammaCorrect()
+	{
+		Float r = (Float)GetR() / 255.0f;
+		Float g = (Float)GetG() / 255.0f;
+		Float b = (Float)GetB() / 255.0f;
+		return Color(
+			sqrt(r) * (256.0f - kEpsilon), 
+			sqrt(g) * (256.0f - kEpsilon), 
+			sqrt(b) * (256.0f - kEpsilon));
+	}
 	constexpr unsigned char GetX() const
 	{
 		return dword >> 24u;

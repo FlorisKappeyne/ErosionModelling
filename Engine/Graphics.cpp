@@ -313,7 +313,7 @@ void Graphics::PutPixel( int x,int y,Color c )
 	assert( x < int( Graphics::ScreenWidth ) );
 	assert( y >= 0 );
 	assert( y < int( Graphics::ScreenHeight ) );
-	pSysBuffer[Graphics::ScreenWidth * y + x] = c;
+	pSysBuffer[Graphics::ScreenWidth * y + x] = c.GammaCorrect();
 }
 
 

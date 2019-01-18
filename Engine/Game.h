@@ -24,6 +24,7 @@
 #include "Mouse.h"
 #include "Graphics.h"
 #include "Simulation.h"
+#include "GridStableSolver.h"
 
 class Game
 {
@@ -44,4 +45,6 @@ private:
 	int time_multiplier = 1;
 	int steps_per_frame;
 	Simulation sim_;
+
+	StableSolver stable_sim;
 };
