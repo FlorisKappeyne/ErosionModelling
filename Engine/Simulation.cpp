@@ -86,6 +86,8 @@ void Simulation::Step()
 	// Update velocities
 	UpdateVelocities();
 
+	//ResetBoundaryConditions();
+
 	//////////////////////////////////////////////////////////////////////////////
 	// solve the Poisson Pressure equation using the iterative jacobi method
 	SolveForPressure();
@@ -94,8 +96,8 @@ void Simulation::Step()
 	// subtract the pressure gradient
 	SubtractPressureGradient();
 
-	/////////////////////////////////////////////////////////////////////////////
-	//// update delta time for the next frame
+	///////////////////////////////////////////////////////////////////////////
+	// update delta time for the next frame
 	//time_passed += dt;
 	//Float dt_n = dt;
 	//Float max_speed = kZeroF;
@@ -290,7 +292,7 @@ void Simulation::UpdateVelocities()
 	memcpy(vn, v, nbf);
 	
 	// Diffuse
-	Convect();
+	Diffuse();
 	memcpy(un, u, nbf);
 	memcpy(vn, v, nbf);	
 
@@ -382,9 +384,9 @@ void Simulation::Convect()
 
 			// convection
 			QF u_convec_qf = *(QF*)&un[idx] * (dt_qf / dx_qf) * (*(QF*)&un[idx] - u_left)
-				- *(QF*)&vn[idx] * (dt_qf / dy_qf) * (*(QF*)&un[idx] - u_down);
+				+ *(QF*)&vn[idx] * (dt_qf / dy_qf) * (*(QF*)&un[idx] - u_down);
 			QF v_convec_qf = *(QF*)&un[idx] * (dt_qf / dx_qf) * (*(QF*)&vn[idx] - v_left)
-				- *(QF*)&vn[idx] * (dt_qf / dy_qf) * (*(QF*)&vn[idx] - v_down);
+				+ *(QF*)&vn[idx] * (dt_qf / dy_qf) * (*(QF*)&vn[idx] - v_down);
 
 			// x velocity
 			*(QF*)&u[idx] = *(QF*)&un[idx] - u_convec_qf;
