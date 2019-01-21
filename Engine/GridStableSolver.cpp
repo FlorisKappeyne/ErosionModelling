@@ -137,7 +137,7 @@ void StableSolver::setBoundary(Float *value, int flag)
         }
     }
 
-    //for velocity along y-axis
+    //for velocity along y-axis 
     if(flag == 2)
     {
         for(int i=1; i<=rowSize-2; i++)
@@ -152,7 +152,7 @@ void StableSolver::setBoundary(Float *value, int flag)
         }
     }
 
-    //density
+    //density (dv/dx = 0 and dv/dy = 0)
     if(flag == 0)
     {
         for(int i=1; i<=rowSize-2; i++)
