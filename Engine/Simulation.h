@@ -105,13 +105,23 @@ private:
 	const QF dx2_qf, dy2_qf;
 	QF dt_qf;
 
-	QI ones = mm_set(Int(-1));
-	QI zeros;
-	QF kTwoQF;
+	const QI ones;
+	const QI zeros;
+	const QF kTwoQF;
+	const QF kOneQF;
+	const QF kZeroQF;
 	Graphics& gfx_;
 
+	Float min_mag;
+	Float max_mag;
+
+	Float min_p;
+	Float max_p;
+	bool drawing_vars_initialized;
+
+
 	static constexpr Float const_pressure = 10.0f;
-	static constexpr int niter_jacobi = 80;
+	static constexpr int niter_jacobi = 50;
 
 private:
 	inline int IndexP(int x, int y)

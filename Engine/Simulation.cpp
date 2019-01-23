@@ -36,6 +36,13 @@ Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 	ones(mm_set(Int(-1))),
 	zeros(mm_set(Int(0))),
 	kTwoQF(mm_set(kTwoF)),
+	kOneQF(mm_set(kOneF)),
+	kZeroQF(mm_set(kZeroF)),
+	min_mag(kZeroF),
+	max_mag(kZeroF),
+	min_p(kZeroF),
+	max_p(kZeroF),
+	drawing_vars_initialized(false),
 	gfx_(gfx)
 {
 	p = (Float*)_aligned_malloc(nc * sizeof(Float), 64);
@@ -82,7 +89,7 @@ void Simulation::Step()
 	//////////////////////////////////////////////////////////////////////////////
 	// Update velocities
 	UpdateVelocities();
-	
+
 	// reset boundary conditions
 	ResetBoundaryConditions();
 
@@ -90,45 +97,60 @@ void Simulation::Step()
 	// solve the Poisson Pressure equation using the iterative jacobi method
 	SolveForPressure();
 
-	////////////////////////////////////////////////////////////////////////////////
-	//// subtract the pressure gradient
-	//SubtractPressureGradient();
+	//////////////////////////////////////////////////////////////////////////////
+	// subtract the pressure gradient
+	SubtractPressureGradient();
 
 	///////////////////////////////////////////////////////////////////////////
 	// update delta time for the next frame
 	time_passed += dt;
-	//Float dt_n = dt;
-	//Float max_speed = kZeroF;
-	//for (int y = 1; y < ny - 1; ++y)
-	//{
-	//	for (int x = 1; x < nx - 1; ++x)
-	//	{
-	//		int idx = y * nx + x;
-	//		max_speed = Max(u[idx], max_speed);
-	//		max_speed = Max(v[idx], max_speed);
-	//	}
-	//}
-	//dt = dx / max_speed;
-	//dt *= 0.1f;
-	//dt = Min(dt_n * kTwoF, dt); // make sure the dt doesn't grow too much
-	//dt_qf = mm_set(dt);
+//	Float dt_n = dt;
+//	Float max_speed = kZeroF;
+//	for (int y = 0; y < ny - 1; ++y)
+//	{
+//		for (int x = 0; x < nx - 1; ++x)
+//		{
+//			int idx = y * nx + x;
+//			max_speed = Max(u[IndexU(x, y)], max_speed);
+//			max_speed = Max(v[IndexV(x, y)], max_speed);
+//		}
+//	}
+//	dt = dx / max_speed;
+//	dt = Min(dt_n * kTwoF, dt); // make sure the dt doesn't grow too much
+//	dt_qf = mm_set(dt);
 }
 
 void Simulation::Draw()
 {
 	// plot magnitude of u
-	Float min_mag = Vec2(u[0], v[0]).Magnitude();
-	Float max_mag = min_mag;
-
-	for (int i = 0; i < nc; ++i)
+	if (drawing_vars_initialized == false)
 	{
-		min_mag = std::min(min_mag, Vec2(u[i], v[i]).Magnitude());
-		max_mag = std::max(max_mag, Vec2(u[i], v[i]).Magnitude());
+		min_mag = Vec2(u[0], v[0]).Magnitude();
+		max_mag = min_mag;
+
+		min_p = p[0];
+		max_p = min_p;
+
+		drawing_vars_initialized = true;
 	}
 
-	for (int y = 0; y < ny; ++y)
+	for (int y = 1; y < ny - 1; ++y)
 	{
-		for (int x = 0; x < nx; ++x)
+		for (int x = 1; x < nx - 1; ++x)
+		{
+			Float avg_u = (u[IndexU(x - 1, y)] + u[IndexU(x, y)]) / kTwoF;
+			Float avg_v = (v[IndexV(x, y - 1)] + v[IndexV(x, y)]) / kTwoF;
+			Float mag = Vec2(avg_u, avg_v).Magnitude();
+
+			min_mag = std::min(min_mag, mag);
+			max_mag = std::max(max_mag, mag);
+		}
+	}
+
+	Float inv_delta_mag = 1 / (max_mag - min_mag);
+	for (int y = 1; y < ny - 1; ++y)
+	{
+		for (int x = 1; x < nx - 1; ++x)
 		{
 			int idx = y * nx + x;
 			if (is_solid[idx])
@@ -136,35 +158,45 @@ void Simulation::Draw()
 				gfx_.PutPixel(x, ny - y - 1, Colors::Green * 0.3f);
 				continue;
 			}
-			Float inv_delta = 1 / (max_mag - min_mag);
-			Float mag = Vec2(u[idx], v[idx]).Magnitude();
-			Color res = (Cell::mc1 * ((max_mag - mag) * inv_delta) + Cell::mc2 * ((mag - min_mag) * inv_delta));
+
+			Float mag = Vec2(
+				(u[IndexU(x - 1, y)] + u[IndexU(x, y)]) / kTwoF,
+				(v[IndexV(x, y - 1)] + v[IndexV(x, y)]) / kTwoF
+			).Magnitude();
+
+			Color res =
+				(Cell::mc1 * (max_mag - mag) * inv_delta_mag) +
+					Cell::mc2 * ((mag - min_mag) * inv_delta_mag);
 			gfx_.PutPixel(x, ny - y - 1, res); // left top
 		}
 	}
 
 	// plot pressure
-	Float min_p = p[0];
-	Float max_p = min_p;
-	for (int i = 0; i < nc; ++i)
+	for (int y = 1; y < ny - 1; ++y)
 	{
-		min_p = std::min(min_p, p[i]);
-		max_p = std::max(max_p, p[i]);
+		for (int x = 1; x < nx - 1; ++x)
+		{
+			Float pressure = p[IndexP(x, y)];
+			min_p = std::min(min_p, pressure);
+			max_p = std::max(max_p, pressure);
+		}
 	}
+	Float inv_delta_p = 1 / (max_p - min_p);
 
 	for (int y = 0; y < ny; ++y)
 	{
 		for (int x = 0; x < nx; ++x)
 		{
-			int idx = y * nx + x;
+			const int idx = IndexP(x, y);
 			if (is_solid[idx])
 			{
 				gfx_.PutPixel(x + nx, ny - y - 1, Colors::Gray * 0.8f);
 				continue;
 			}
-			Float inv_delta = 1 / (max_p - min_p);
 			Float pressure = p[idx];
-			Color res = (Cell::pc1 * (max_p - pressure) * inv_delta) + Cell::pc2 * ((pressure - min_p) * inv_delta);
+			Color res =
+				(Cell::pc1 * (max_p - pressure) * inv_delta_p) +
+				Cell::pc2 * ((pressure - min_p) * inv_delta_p);
 			gfx_.PutPixel(x + nx, ny - y - 1, res); // right top
 		}
 	}
@@ -253,13 +285,13 @@ void Simulation::ResetEdges()
 {
 	for (int x = 1; x < nx - 1; x += 4)
 	{
-		*(QF*)&p[x] = mm_set(kZeroF);
-		*(QF*)&u[x] = mm_set(kOneF);
-		*(QF*)&v[x] = mm_set(kZeroF);
+		*(QF*)&p[x] = kZeroQF;
+		*(QF*)&u[x] = kOneQF;
+		*(QF*)&v[x] = kZeroQF;
 
 		*(QF*)&p[IndexP(x, ny - 1)] = *(QF*)&p[IndexP(x, ny - 2)];
-		*(QF*)&u[IndexU(x, ny - 1)] = mm_set(kZeroF);
-		*(QF*)&v[IndexV(x, ny - 2)] = mm_set(kZeroF);
+		*(QF*)&u[IndexU(x, ny - 1)] = kZeroQF;
+		*(QF*)&v[IndexV(x, ny - 2)] = kZeroQF;
 	}
 
 	for (int y = 1; y < ny - 1; ++y)
@@ -281,7 +313,7 @@ void Simulation::ResetEdges()
 
 void Simulation::UpdateVelocities()
 {
-#pragma omp parallel for
+//#pragma omp parallel for
 	for (int y = 1; y < ny - 1; ++y)
 	{
 		for (int x = 1; x < nx - 1; x += 4)
@@ -323,29 +355,25 @@ void Simulation::UpdateVelocities()
 			QF u_laplacian = Laplacian(u_center, u_left, u_right, u_down, u_up);
 			QF v_laplacian = Laplacian(v_center, v_left, v_right, v_down, v_up);
 
-			// convection
-			QF u_convec_qf =
+			// advection
+			QF u_advec_qf =
 				u_center * dt_qf * u_gradient.x +
 				avg_v * dt_qf * u_gradient.y;
-			QF v_convec_qf =
+			QF v_advec_qf =
 				avg_u * dt_qf * v_gradient.x +
 				v_center * dt_qf * v_gradient.y;
 
 			// diffusion
 			QF u_diff_qf = viscosity_qf * dt_qf * u_laplacian;
 			QF v_diff_qf = viscosity_qf * dt_qf * v_laplacian;
-			//QF u_diff_qf = mm_set(kZeroF);
-			//QF v_diff_qf = mm_set(kZeroF);
 
 			// acceleration through constant force
 			QF u_acc_qf = force_u_qf / (dx_qf * dy_qf * density_qf) * dt_qf;
 			QF v_acc_qf = force_v_qf / (dx_qf * dy_qf * density_qf) * dt_qf;
-			//QF u_acc_qf = mm_set(kZeroF);
-			//QF v_acc_qf = mm_set(kZeroF);
 
 			// update the velocities with the calculated terms
-			*(QF*)&u[idx_u] = *(QF*)&un[idx_u] - u_convec_qf + u_diff_qf + u_acc_qf;
-			*(QF*)&v[idx_v] = *(QF*)&vn[idx_v] - v_convec_qf + v_diff_qf + v_acc_qf;
+			*(QF*)&u[idx_u] = *(QF*)&un[idx_u] - u_advec_qf + u_diff_qf + u_acc_qf;
+			*(QF*)&v[idx_v] = *(QF*)&vn[idx_v] - v_advec_qf + v_diff_qf + v_acc_qf;
 		}
 	}
 }
@@ -368,7 +396,7 @@ void Simulation::SolveForPressure()
 				if (*(int*)&is_solid[idx] == 0x01010101)
 					continue;
 
-				QF p_centre = *(QF*)&pn[idx];
+				QF p_center = *(QF*)&pn[idx];
 				QF p_left = *(QF*)&pn[idx - 1];
 				QF p_right = *(QF*)&pn[idx + 1];
 				QF p_down = *(QF*)&pn[idx - nx];
@@ -402,10 +430,10 @@ void Simulation::SolveForPressure()
 					(Int)is_solid[idx + nx]);
 				mask_up = mm_sub(zeros, mask_up);
 
-				p_left = mm_blend(p_left, p_centre, *(QF*)&mask_left);
-				p_right = mm_blend(p_right, p_centre, *(QF*)&mask_right);
-				p_down = mm_blend(p_down, p_centre, *(QF*)&mask_down);
-				p_up = mm_blend(p_up, p_centre, *(QF*)&mask_up);
+				p_left = mm_blend(p_left, p_center, *(QF*)&mask_left);
+				p_right = mm_blend(p_right, p_center, *(QF*)&mask_right);
+				p_down = mm_blend(p_down, p_center, *(QF*)&mask_down);
+				p_up = mm_blend(p_up, p_center, *(QF*)&mask_up);
 
 				const QF u_left = *(QF*)&u[idx_u - 1];
 				const QF u_right = *(QF*)&u[idx_u];
@@ -414,7 +442,7 @@ void Simulation::SolveForPressure()
 				const QF v_up = *(QF*)&v[idx_v];
 
 				const QF alpha = dx2_qf * dy2_qf * mm_set(-kOneF);
-				const QF beta = mm_set(2.0) * (dx2_qf + dy2_qf);
+				const QF beta = kTwoQF * (dx2_qf + dy2_qf);
 				const QF div_w = Divergence(u_left, u_right, v_down, v_up);
 
 				// jacobi iteration
@@ -429,7 +457,7 @@ void Simulation::SolveForPressure()
 
 void Simulation::SubtractPressureGradient()
 {
-#pragma omp parallel for
+//#pragma omp parallel for
 	for (int y = 1; y < ny - 1; ++y)
 	{
 		for (int x = 1; x < nx - 1; x += 4)
@@ -441,7 +469,7 @@ void Simulation::SubtractPressureGradient()
 			if (*(int*)&is_solid[idx] == 0x01010101)
 				continue;
 
-			QF p_centre = *(QF*)&pn[idx];
+			QF p_center = *(QF*)&pn[idx];
 			QF p_right = *(QF*)&pn[idx + 1];
 			QF p_up = *(QF*)&pn[idx + nx];
 
@@ -459,11 +487,11 @@ void Simulation::SubtractPressureGradient()
 				(Int)is_solid[idx + nx]);
 			mask_up = mm_sub(zeros, mask_up);
 
-			p_right = mm_blend(p_right, p_centre, *(QF*)&mask_right);
-			p_up = mm_blend(p_up, p_centre, *(QF*)&mask_up);
+			p_right = mm_blend(p_right, p_center, *(QF*)&mask_right);
+			p_up = mm_blend(p_up, p_center, *(QF*)&mask_up);
 
 			// pressure is always non-staggered
-			Vec2T<QF> gradient = GradientStaggered(p_centre, p_right, p_centre, p_up);
+			Vec2T<QF> gradient = GradientStaggered(p_center, p_right, p_center, p_up);
 
 			// x velocity
 			*(QF*)&u[idx_u] = *(QF*)&u[idx_u] - gradient.x;
