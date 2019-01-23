@@ -3,11 +3,6 @@
 #include <memory>
 #include <Windows.h>
 
-/*
-todo
- - boundary conditions checken
- - double check all indices
-*/
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -46,18 +41,18 @@ Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 {
 	p = (Float*)_aligned_malloc(nc * sizeof(Float), 64);
 	pn = (Float*)_aligned_malloc(nc * sizeof(Float), 64);
-	u = (Float*)_aligned_malloc((nx + 1) * ny * sizeof(Float), 64);
-	un = (Float*)_aligned_malloc((nx + 1) * ny * sizeof(Float), 64);
-	v = (Float*)_aligned_malloc((ny + 1) * nx * sizeof(Float), 64);
-	vn = (Float*)_aligned_malloc((ny + 1) * nx * sizeof(Float), 64);
+	u = (Float*)_aligned_malloc((nx - 1) * ny * sizeof(Float), 64);
+	un = (Float*)_aligned_malloc((nx - 1) * ny * sizeof(Float), 64);
+	v = (Float*)_aligned_malloc((ny - 1) * nx * sizeof(Float), 64);
+	vn = (Float*)_aligned_malloc((ny - 1) * nx * sizeof(Float), 64);
 	is_solid = (bool*)_aligned_malloc(nc * sizeof(bool), 64);
 
 	memset(p, 0, nc * sizeof(Float));
 	memset(pn, 0, nc * sizeof(Float));
-	memset(u, 0, (nx + 1) * ny * sizeof(Float));
-	memset(un, 0, (nx + 1) * ny * sizeof(Float));
-	memset(v, 0, (ny + 1) * nx * sizeof(Float));
-	memset(vn, 0, (ny + 1) * nx * sizeof(Float));
+	memset(u, 0, (nx - 1) * ny * sizeof(Float));
+	memset(un, 0, (nx - 1) * ny * sizeof(Float));
+	memset(v, 0, (ny - 1) * nx * sizeof(Float));
+	memset(vn, 0, (ny - 1) * nx * sizeof(Float));
 	memset(is_solid, 0, nc * sizeof(bool));
 
 	// initialize the field
@@ -81,15 +76,15 @@ void Simulation::Step()
 	ResetBoundaryConditions();
 
 	// update old_cells
-	memcpy(un, u, (nx + 1) * ny * sizeof(Float));
-	memcpy(vn, v, (ny + 1) * nx * sizeof(Float));
+	memcpy(un, u, (nx - 1) * ny * sizeof(Float));
+	memcpy(vn, v, (ny - 1) * nx * sizeof(Float));
 	memcpy(pn, p, nc * sizeof(Float));
 
 	//////////////////////////////////////////////////////////////////////////////
 	// Update velocities
 	UpdateVelocities();
-
-	//ResetBoundaryConditions();
+	
+	ResetBoundaryConditions();
 
 	//////////////////////////////////////////////////////////////////////////////
 	// solve the Poisson Pressure equation using the iterative jacobi method
@@ -257,29 +252,30 @@ void Simulation::ResetEdges()
 {
 	for (int x = 1; x < nx - 1; x += 4)
 	{
-		*(QF*)&p[x] = mm_set(kZeroF);
-		*(QF*)&u[x] = mm_set(kOneF);
-		*(QF*)&v[x] = mm_set(kZeroF);
+		*(QF*)&p[x] = mm_set(kOneF);
+		*(QF*)&u[x] = mm_set(kZeroF);
+		*(QF*)&v[x] = mm_set(kOneF);
 
 		*(QF*)&p[x + (ny - 1) * nx] = *(QF*)&p[x + (ny - 1) * nx];
 		*(QF*)&u[x + (ny - 1) * nx] = mm_set(kZeroF);
-		*(QF*)&v[x + (ny - 1) * nx] = mm_set(kZeroF);
+		*(QF*)&v[x + ny * nx] = mm_set(kZeroF);
 	}
 	// handle speeds at right edge that are missed by simd loop because there's an extra column
-	u[nx] = kZeroF;
-	u[nx + (ny - 1) * (nx + 1)] = kZeroF;
+	u[nx - 1] = kZeroF;
+	u[1 + ny * nx] = kZeroF;
 
 	// not ny - 1 because there's an extra row
-	for (int y = 1; y < ny; ++y)
+	for (int y = 1; y < ny - 1; ++y)
 	{
 		p[y * nx] = p[y * nx + nx - 2];
-		u[y * nx] = kZeroF;
+		u[y * nx + y] = kZeroF;
 		v[y * nx] = kZeroF;
 
 		p[y * nx + nx - 1] = p[y * nx + 1];
-		u[y * nx + nx - 1] = kZeroF;
+		u[y * nx + nx - 1 + y] = kZeroF;
 		v[y * nx + nx - 1] = kZeroF;
 	}
+	v[ny * nx - nx] = kZeroF;
 	v[ny * nx - 1] = kZeroF;
 }
 
@@ -342,10 +338,14 @@ void Simulation::UpdateVelocities()
 			// diffusion
 			QF u_diff_qf = viscosity_qf * dt_qf * u_laplacian;
 			QF v_diff_qf = viscosity_qf * dt_qf * v_laplacian;
+			//QF u_diff_qf = mm_set(kZeroF);
+			//QF v_diff_qf = mm_set(kZeroF);
 
 			// acceleration through constant force
 			QF u_acc_qf = force_u_qf / (dx_qf * dy_qf * density_qf) * dt_qf;
 			QF v_acc_qf = force_v_qf / (dx_qf * dy_qf * density_qf) * dt_qf;
+			//QF u_acc_qf = mm_set(kZeroF);
+			//QF v_acc_qf = mm_set(kZeroF);
 
 			// update the velocities with the calculated terms
 			*(QF*)&u[idx] = *(QF*)&un[idx] - u_convec_qf + u_diff_qf + u_acc_qf;

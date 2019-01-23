@@ -5,7 +5,7 @@
 class Simulation
 {
 public:
-	Simulation(Graphics& gfx, Float viscosity, Float density, 
+	Simulation(Graphics& gfx, Float viscosity, Float density,
 		Float ds, Float delta_time);
 	~Simulation();
 
@@ -112,4 +112,18 @@ private:
 
 	static constexpr Float const_pressure = 10.0f;
 	static constexpr int niter_jacobi = 80;
+
+private:
+	inline int IndexP(int x, int y)
+	{
+		return y * nx + x;
+	}
+	inline int IndexU(int x, int y)
+	{
+		return y * (nx - 1) + x;
+	}
+	inline int IndexV(int x, int y)
+	{
+		return y * nx + x;
+	}
 };
