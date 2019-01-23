@@ -70,13 +70,13 @@ public:
 	}
 	Color GammaCorrect()
 	{
-		Float r = (Float)GetR() / 255.0f;
-		Float g = (Float)GetG() / 255.0f;
-		Float b = (Float)GetB() / 255.0f;
+		Float r = (Float)GetR() / (Float)255.0f;
+		Float g = (Float)GetG() / (Float)255.0f;
+		Float b = (Float)GetB() / (Float)255.0f;
 		return Color(
-			sqrt(r) * (256.0f - kEpsilon), 
-			sqrt(g) * (256.0f - kEpsilon), 
-			sqrt(b) * (256.0f - kEpsilon));
+			(unsigned char)(sqrt(r) * ((Float)256.0f - kEpsilon)), 
+			(unsigned char)(sqrt(g) * ((Float)256.0f - kEpsilon)), 
+			(unsigned char)(sqrt(b) * ((Float)256.0f - kEpsilon)));
 	}
 	constexpr unsigned char GetX() const
 	{
