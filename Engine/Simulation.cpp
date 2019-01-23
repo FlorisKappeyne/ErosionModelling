@@ -4,7 +4,6 @@
 #include <Windows.h>
 
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Simulation
 ///////////////////////////////////////////////////////////////////////////////
@@ -84,15 +83,16 @@ void Simulation::Step()
 	// Update velocities
 	UpdateVelocities();
 	
+	// reset boundary conditions
 	ResetBoundaryConditions();
 
 	//////////////////////////////////////////////////////////////////////////////
 	// solve the Poisson Pressure equation using the iterative jacobi method
 	SolveForPressure();
 
-	//////////////////////////////////////////////////////////////////////////////
-	// subtract the pressure gradient
-	SubtractPressureGradient();
+	////////////////////////////////////////////////////////////////////////////////
+	//// subtract the pressure gradient
+	//SubtractPressureGradient();
 
 	///////////////////////////////////////////////////////////////////////////
 	// update delta time for the next frame
@@ -227,8 +227,9 @@ void Simulation::ResetBoundaryConditions()
 	{
 		for (int x = 1; x < nx - 1; ++x)
 		{
-			int idx = y * nx + x;
-			int idx_u = idx + y;
+			const int idx = IndexP(x, y);
+			const int idx_u = IndexU(x, y);
+			const int idx_v = IndexV(x, y);
 
 			if (*(int*)&is_solid[idx] == 0)
 				continue;
@@ -240,10 +241,10 @@ void Simulation::ResetBoundaryConditions()
 				(Int)is_solid[idx]);
 			mask = mm_sub(zeros, mask);
 
+			*(QF*)&u[idx_u - 1] = mm_blend(*(QF*)&u[idx_u - 1], *(QF*)&zeros, *(QF*)&mask);
 			*(QF*)&u[idx_u] = mm_blend(*(QF*)&u[idx_u], *(QF*)&zeros, *(QF*)&mask);
-			*(QF*)&u[idx_u + 1] = mm_blend(*(QF*)&u[idx_u + 1], *(QF*)&zeros, *(QF*)&mask);
-			*(QF*)&v[idx] = mm_blend(*(QF*)&v[idx], *(QF*)&zeros, *(QF*)&mask);
-			*(QF*)&v[idx + nx] = mm_blend(*(QF*)&v[idx + nx], *(QF*)&zeros, *(QF*)&mask);
+			*(QF*)&v[idx_v - nx] = mm_blend(*(QF*)&v[idx - nx], *(QF*)&zeros, *(QF*)&mask);
+			*(QF*)&v[idx_v] = mm_blend(*(QF*)&v[idx], *(QF*)&zeros, *(QF*)&mask);
 		}
 	}
 }
@@ -252,31 +253,25 @@ void Simulation::ResetEdges()
 {
 	for (int x = 1; x < nx - 1; x += 4)
 	{
-		*(QF*)&p[x] = mm_set(kOneF);
-		*(QF*)&u[x] = mm_set(kZeroF);
-		*(QF*)&v[x] = mm_set(kOneF);
+		*(QF*)&p[x] = mm_set(kZeroF);
+		*(QF*)&u[x] = mm_set(kOneF);
+		*(QF*)&v[x] = mm_set(kZeroF);
 
-		*(QF*)&p[x + (ny - 1) * nx] = *(QF*)&p[x + (ny - 1) * nx];
-		*(QF*)&u[x + (ny - 1) * nx] = mm_set(kZeroF);
-		*(QF*)&v[x + ny * nx] = mm_set(kZeroF);
+		*(QF*)&p[IndexP(x, ny - 1)] = *(QF*)&p[IndexP(x, ny - 2)];
+		*(QF*)&u[IndexU(x, ny - 1)] = mm_set(kZeroF);
+		*(QF*)&v[IndexV(x, ny - 2)] = mm_set(kZeroF);
 	}
-	// handle speeds at right edge that are missed by simd loop because there's an extra column
-	u[nx - 1] = kZeroF;
-	u[1 + ny * nx] = kZeroF;
 
-	// not ny - 1 because there's an extra row
 	for (int y = 1; y < ny - 1; ++y)
 	{
-		p[y * nx] = p[y * nx + nx - 2];
-		u[y * nx + y] = kZeroF;
-		v[y * nx] = kZeroF;
+		p[IndexP(0, y)] = p[IndexP(1, y)];
+		u[IndexU(0, y)] = kZeroF;
+		v[IndexV(0, y)] = kZeroF;
 
-		p[y * nx + nx - 1] = p[y * nx + 1];
-		u[y * nx + nx - 1 + y] = kZeroF;
-		v[y * nx + nx - 1] = kZeroF;
+		p[IndexP(nx - 1, y)] = p[IndexP(nx - 2, y)];
+		u[IndexU(nx - 2, y)] = kZeroF;
+		v[IndexV(nx - 1, y)] = kZeroF;
 	}
-	v[ny * nx - nx] = kZeroF;
-	v[ny * nx - 1] = kZeroF;
 }
 
 
@@ -291,8 +286,9 @@ void Simulation::UpdateVelocities()
 	{
 		for (int x = 1; x < nx - 1; x += 4)
 		{
-			const int idx = y * nx + x;
-			const int idx_u = idx + y;
+			const int idx = IndexP(x, y);
+			const int idx_u = IndexU(x, y);
+			const int idx_v = IndexV(x, y);
 
 			if (*(int32*)&is_solid[idx] == 0x01010101)
 				continue;
@@ -300,24 +296,24 @@ void Simulation::UpdateVelocities()
 			const QF u_center = *(QF*)&un[idx_u];
 			const QF u_left = *(QF*)&un[idx_u - 1];
 			const QF u_right = *(QF*)&un[idx_u + 1];
-			const QF u_down = *(QF*)&un[idx_u - nx - 1];
-			const QF u_up = *(QF*)&un[idx_u + nx + 1];
+			const QF u_down = *(QF*)&un[idx_u - nx + 1];
+			const QF u_up = *(QF*)&un[idx_u + nx - 1];
 			const QF avg_v = Average4(
-				*(QF*)&vn[idx - 1],
-				*(QF*)&vn[idx],
-				*(QF*)&vn[idx + nx - 1],
-				*(QF*)&vn[idx + nx]);
+				*(QF*)&vn[idx_v - 1],
+				*(QF*)&vn[idx_v],
+				*(QF*)&vn[idx_v + nx - 1],
+				*(QF*)&vn[idx_v + nx]);
 
-			const QF v_center = *(QF*)&vn[idx];
-			const QF v_left = *(QF*)&vn[idx - 1];
-			const QF v_right = *(QF*)&vn[idx + 1];
-			const QF v_down = *(QF*)&vn[idx - nx];
-			const QF v_up = *(QF*)&vn[idx + nx];
+			const QF v_center = *(QF*)&vn[idx_v];
+			const QF v_left = *(QF*)&vn[idx_v - 1];
+			const QF v_right = *(QF*)&vn[idx_v + 1];
+			const QF v_down = *(QF*)&vn[idx_v - nx];
+			const QF v_up = *(QF*)&vn[idx_v + nx];
 			const QF avg_u = Average4(
+				*(QF*)&un[idx_u - 1],
 				*(QF*)&un[idx_u],
-				*(QF*)&un[idx_u + 1],
-				*(QF*)&un[idx_u - nx - 1],
-				*(QF*)&un[idx_u - nx]);
+				*(QF*)&un[idx_u + nx - 1],
+				*(QF*)&un[idx_u + nx]);
 
 			// precalculate the gradients
 			Vec2T<QF> u_gradient = Gradient(u_left, u_right, u_down, u_up);
@@ -348,55 +344,9 @@ void Simulation::UpdateVelocities()
 			//QF v_acc_qf = mm_set(kZeroF);
 
 			// update the velocities with the calculated terms
-			*(QF*)&u[idx] = *(QF*)&un[idx] - u_convec_qf + u_diff_qf + u_acc_qf;
-			*(QF*)&v[idx] = *(QF*)&vn[idx] - v_convec_qf + v_diff_qf + v_acc_qf;
+			*(QF*)&u[idx_u] = *(QF*)&un[idx_u] - u_convec_qf + u_diff_qf + u_acc_qf;
+			*(QF*)&v[idx_v] = *(QF*)&vn[idx_v] - v_convec_qf + v_diff_qf + v_acc_qf;
 		}
-		// for the last column of u values
-		const int idx_u = y * (nx + 1) + nx - 1;
-		Float u_center = un[idx_u];
-		Float u_left = un[idx_u - 1];
-		Float u_right = un[idx_u + 1];
-		Float u_down = un[idx_u - nx - 1];
-		Float u_up = un[idx_u + nx + 1];
-
-		Float avg_v = Average4(
-			vn[y * nx - 2],
-			vn[y * nx - 1],
-			vn[y * nx + nx - 2],
-			vn[y * nx + nx - 1]);
-		Float u_conv = 
-			u_center * dt * (u_right - u_left) / (kTwoF * dx) + 
-			avg_v * dt * (u_up - u_down) / (kTwoF * dy);
-		Float u_diff = viscosity_ * dt * Laplacian(u_center, u_left, u_right, u_down, u_up);
-		Float u_acc = force_u_ / (dx * dy * density_) * dt;
-		u[idx_u] = un[idx_u] - u_conv + u_diff + u_acc;
-	}
-
-	// for the last row of v values
-	for (int x = 1; x < nx - 1; ++x)
-	{
-		// for the last column of u values
-		const int idx = (ny - 2) * nx + x;
-		const int idx_u = idx + ny - 2;
-
-		Float v_center = vn[idx];
-		Float v_left = vn[idx - 1];
-		Float v_right = vn[idx + 1];
-		Float v_down = vn[idx - nx];
-		Float v_up = vn[idx + nx];
-
-		Float avg_u = Average4(
-			vn[idx_u],
-			vn[idx_u + 1],
-			vn[idx_u - nx - 1],
-			vn[idx_u - nx]);
-
-		Float v_conv =
-			avg_u * dt * (v_right - v_left) / (kTwoF * dx) +
-			v_center * dt * (v_up - v_down) / (kTwoF * dy);
-		Float v_diff = viscosity_ * dt * Laplacian(v_center, v_left, v_right, v_down, v_up);
-		Float v_acc = force_v_ / (dx * dy * density_) * dt;
-		u[idx_u] = un[idx_u] - v_conv + v_diff + v_acc;
 	}
 }
 
@@ -411,8 +361,9 @@ void Simulation::SolveForPressure()
 		{
 			for (int x = 1; x < nx - 1; x += 4)
 			{
-				const int idx = y * nx + x;
-				const int idx_u = idx + y;
+				const int idx = IndexP(x, y);
+				const int idx_u = IndexU(x, y);
+				const int idx_v = IndexV(x, y);
 
 				if (*(int*)&is_solid[idx] == 0x01010101)
 					continue;
@@ -456,14 +407,14 @@ void Simulation::SolveForPressure()
 				p_down = mm_blend(p_down, p_centre, *(QF*)&mask_down);
 				p_up = mm_blend(p_up, p_centre, *(QF*)&mask_up);
 
-				const QF u_left = *(QF*)&u[idx_u];
-				const QF u_right = *(QF*)&u[idx_u + 1];
+				const QF u_left = *(QF*)&u[idx_u - 1];
+				const QF u_right = *(QF*)&u[idx_u];
 
-				const QF v_down = *(QF*)&v[idx];
-				const QF v_up = *(QF*)&v[idx + nx];
+				const QF v_down = *(QF*)&v[idx_v - nx];
+				const QF v_up = *(QF*)&v[idx_v];
 
 				const QF alpha = dx2_qf * dy2_qf * mm_set(-kOneF);
-				const QF beta = mm_set(2.0) * dx2_qf * dy2_qf;
+				const QF beta = mm_set(2.0) * (dx2_qf + dy2_qf);
 				const QF div_w = Divergence(u_left, u_right, v_down, v_up);
 
 				// jacobi iteration
@@ -483,55 +434,42 @@ void Simulation::SubtractPressureGradient()
 	{
 		for (int x = 1; x < nx - 1; x += 4)
 		{
-			const int idx = y * nx + x;
-			const int idx_u = idx + y;
+			const int idx = IndexP(x, y);
+			const int idx_u = IndexU(x, y);
+			const int idx_v = IndexV(x, y);
 
 			if (*(int*)&is_solid[idx] == 0x01010101)
 				continue;
 
 			QF p_centre = *(QF*)&pn[idx];
-			QF p_left = *(QF*)&pn[idx - 1];
-			QF p_down = *(QF*)&pn[idx - nx];
+			QF p_right = *(QF*)&pn[idx + 1];
+			QF p_up = *(QF*)&pn[idx + nx];
 
-			QI mask_left = mm_set(
-				(Int)is_solid[idx - 1 + 3],
-				(Int)is_solid[idx - 1 + 2],
-				(Int)is_solid[idx - 1 + 1],
-				(Int)is_solid[idx - 1]);
-			mask_left = mm_sub(zeros, mask_left);
+			QI mask_right = mm_set(
+				(Int)is_solid[idx + 1 + 3],
+				(Int)is_solid[idx + 1 + 2],
+				(Int)is_solid[idx + 1 + 1],
+				(Int)is_solid[idx + 1]);
+			mask_right = mm_sub(zeros, mask_right);
 
-			QI mask_down = mm_set(
-				(Int)is_solid[idx - nx + 3],
-				(Int)is_solid[idx - nx + 2],
-				(Int)is_solid[idx - nx + 1],
-				(Int)is_solid[idx - nx]);
-			mask_down = mm_sub(zeros, mask_down);
+			QI mask_up = mm_set(
+				(Int)is_solid[idx + nx + 3],
+				(Int)is_solid[idx + nx + 2],
+				(Int)is_solid[idx + nx + 1],
+				(Int)is_solid[idx + nx]);
+			mask_up = mm_sub(zeros, mask_up);
 
-			p_left = mm_blend(p_left, p_centre, *(QF*)&mask_left);\
-			p_down = mm_blend(p_down, p_centre, *(QF*)&mask_down);
+			p_right = mm_blend(p_right, p_centre, *(QF*)&mask_right);
+			p_up = mm_blend(p_up, p_centre, *(QF*)&mask_up);
 
 			// pressure is always non-staggered
-			Vec2T<QF> gradient = GradientStaggered(p_left, p_centre, p_down, p_centre);
+			Vec2T<QF> gradient = GradientStaggered(p_centre, p_right, p_centre, p_up);
 
 			// x velocity
 			*(QF*)&u[idx_u] = *(QF*)&u[idx_u] - gradient.x;
 
 			// y velocity
-			*(QF*)&v[idx] = *(QF*)&v[idx] - gradient.y;
+			*(QF*)&v[idx_v] = *(QF*)&v[idx_v] - gradient.y;
 		}
-		// for the last column of u values
-		Float p_centre = p[y * nx + nx - 1];
-		Float p_left = is_solid[y * nx + nx - 1] ? p[y * nx + nx - 1] : p[y * nx + nx - 2];
-		u[y * (nx + 1) + nx - 1] = u[y * (nx + 1) + nx - 1] - (p_centre - p_left) / dx;
-	}
-	
-	// for the last row of v values
-	for (int x = 1; x < nx - 1; ++x)
-	{
-		// for the last column of u values
-		Float p_centre = p[(ny - 1) * nx + x];
-		Float p_down = p[(ny - 2) * nx + x];
-		p_down = is_solid[(ny - 1) * nx + x] ? p_centre : p_down;
-		v[(ny - 1) * nx + x] = v[ny * nx + x] - (p_centre - p_down) / dy;
 	}
 }
