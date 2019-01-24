@@ -13,14 +13,67 @@ public:
 	void Draw();
 
 private:
-
+	// field control
 	void InitField();
 	void ResetBoundaryConditions();
 	void ResetEdges();
 
+	// simulation
 	void SolveForPressure();
 	void UpdateVelocities();
 	void SubtractPressureGradient();
+	void UpdateErosionProcess();
+	void UpdateDeltaTime();
+
+private:
+	Float* p, *pn;
+	Float* u, *un;
+	Float* v, *vn;
+	Float* s;
+	bool* is_solid;
+
+	const Float viscosity;
+	const Float density;
+	const Float force_u;
+	const Float force_v;
+	const Vec2I dim;
+	const int nx, ny;
+	const int nc; // number of cells
+	const Float dx, dy;
+	const Float dx2, dy2;
+	Float dt;
+	Float time_passed;
+	Float time_until_erosion;
+
+	const QF viscosity_qf;
+	const QF density_qf;
+	const QF force_u_qf;
+	const QF force_v_qf;
+	const QF dx_qf, dy_qf;
+	const QF dx2_qf, dy2_qf;
+	QF dt_qf;
+
+	const QI ones;
+	const QI zeros;
+	const QF kTwoQF;
+	const QF kOneQF;
+	const QF kZeroQF;
+	Graphics& gfx;
+
+	Float min_mag;
+	Float max_mag;
+
+	Float min_p;
+	Float max_p;
+	bool drawing_vars_initialized;
+
+	static constexpr int niter_jacobi = 80;
+	static constexpr Float initial_sim_seconds = 5;
+	static constexpr Float convergence_sim_seconds = 1;
+	static constexpr int erosion_radius = 4;
+	static constexpr bool visualize_stress_rt = true;
+
+private:
 	void CalculateShearStress();
 	void ErodeGeometry(Vec2I pos, int radius);
 
@@ -81,57 +134,6 @@ private:
 		return (left + right - kTwoF * center) / dx2 + (down + up - kTwoF * center) / dy2;
 	}
 
-private:
-	Float* p, *pn;
-	Float* u, *un;
-	Float* v, *vn;
-	bool* is_solid;
-	Float* s;
-
-	const Float viscosity_;
-	const Float density_;
-	const Float force_u_;
-	const Float force_v_;
-	const Vec2I dim_;
-	const int nx, ny;
-	const int nc; // number of cells
-	const Float dx, dy;
-	const Float dx2, dy2;
-	Float dt;
-	Float time_passed;
-	int steps_until_erosion;
-
-	const QF viscosity_qf;
-	const QF density_qf;
-	const QF force_u_qf;
-	const QF force_v_qf;
-	const QF dx_qf, dy_qf;
-	const QF dx2_qf, dy2_qf;
-	QF dt_qf;
-
-	const QI ones;
-	const QI zeros;
-	const QF kTwoQF;
-	const QF kOneQF;
-	const QF kZeroQF;
-	Graphics& gfx_;
-
-	Float min_mag;
-	Float max_mag;
-
-	Float min_p;
-	Float max_p;
-	bool drawing_vars_initialized;
-
-
-	static constexpr Float const_pressure = 10.0f;
-	static constexpr int niter_jacobi = 50;
-	static constexpr int initial_iterations = 500;
-	static constexpr int convergence_iterations = 100;
-	static constexpr int erosion_radius = 4;
-	static constexpr bool visualize_stress_rt = true;
-
-private:
 	inline int IndexP(int x, int y)
 	{
 		return y * nx + x;

@@ -11,10 +11,10 @@
 Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 	Float ds, Float delta_time)
 	:
-	viscosity_(viscosity),
-	density_(density),
-	force_u_(0.0f),
-	force_v_(0.0f),
+	viscosity(viscosity),
+	density(density),
+	force_u(0.0f),
+	force_v(0.0f),
 	nx(gfx.ScreenHeight),
 	ny(gfx.ScreenHeight),
 	nc(nx * ny),
@@ -24,11 +24,11 @@ Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 	dy2(dy * dy),
 	dt(delta_time),
 	time_passed(kZeroF),
-	steps_until_erosion(initial_iterations),
+	time_until_erosion(initial_sim_seconds),
 	viscosity_qf(mm_set(viscosity)),
 	density_qf(mm_set(density)),
-	force_u_qf(mm_set(force_u_)),
-	force_v_qf(mm_set(force_v_)),
+	force_u_qf(mm_set(force_u)),
+	force_v_qf(mm_set(force_v)),
 	dx_qf(mm_set(dx)),
 	dy_qf(mm_set(dy)),
 	dx2_qf(mm_set(dx * dx)),
@@ -44,7 +44,7 @@ Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 	min_p(kZeroF),
 	max_p(kZeroF),
 	drawing_vars_initialized(false),
-	gfx_(gfx)
+	gfx(gfx)
 {
 	p = (Float*)_aligned_malloc(nc * sizeof(Float), 64);
 	pn = (Float*)_aligned_malloc(nc * sizeof(Float), 64);
@@ -52,8 +52,8 @@ Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 	un = (Float*)_aligned_malloc((nx - 1) * ny * sizeof(Float), 64);
 	v = (Float*)_aligned_malloc((ny - 1) * nx * sizeof(Float), 64);
 	vn = (Float*)_aligned_malloc((ny - 1) * nx * sizeof(Float), 64);
-	is_solid = (bool*)_aligned_malloc(nc * sizeof(bool), 64);
 	s = (Float*)_aligned_malloc(nc * sizeof(Float), 64);
+	is_solid = (bool*)_aligned_malloc(nc * sizeof(bool), 64);
 
 	memset(p, 0, nc * sizeof(Float));
 	memset(pn, 0, nc * sizeof(Float));
@@ -94,9 +94,6 @@ void Simulation::Step()
 	// Update velocities
 	UpdateVelocities();
 
-	// reset boundary conditions
-	ResetBoundaryConditions();
-
 	//////////////////////////////////////////////////////////////////////////////
 	// solve the Poisson Pressure equation using the iterative jacobi method
 	SolveForPressure();
@@ -105,50 +102,13 @@ void Simulation::Step()
 	// subtract the pressure gradient
 	SubtractPressureGradient();
 
+	//////////////////////////////////////////////////////////////////////////////
+	// update erosion process
+	UpdateErosionProcess();
+
 	///////////////////////////////////////////////////////////////////////////
 	// update delta time for the next frame
-	time_passed += dt;
-//	Float dt_n = dt;
-//	Float max_speed = kZeroF;
-//	for (int y = 0; y < ny - 1; ++y)
-//	{
-//		for (int x = 0; x < nx - 1; ++x)
-//		{
-//			int idx = y * nx + x;
-//			max_speed = Max(u[IndexU(x, y)], max_speed);
-//			max_speed = Max(v[IndexV(x, y)], max_speed);
-//		}
-//	}
-//	dt = dx / max_speed;
-//	dt = Min(dt_n * kTwoF, dt); // make sure the dt doesn't grow too much
-//	dt_qf = mm_set(dt);
-
-	if (steps_until_erosion == 0)
-	{
-		ResetBoundaryConditions();
-		CalculateShearStress();
-
-		// calculate position of max stress
-		Float max_stress = kZeroF;
-		Vec2I max_stress_pos = Vec2I(0, 0);
-		for (int y = 1; y < ny - 1; ++y)
-		{
-			for (int x = 1; x < nx - 1; ++x)
-			{
-				if (s[IndexP(x, y)] > max_stress)
-				{
-					max_stress = s[IndexP(x, y)];
-					max_stress_pos.x = x;
-					max_stress_pos.y = y;
-				}
-			}
-		}
-
-		ErodeGeometry(max_stress_pos, erosion_radius);
-		steps_until_erosion = convergence_iterations;
-	}
-
-	steps_until_erosion--;
+	//UpdateDeltaTime();
 }
 
 void Simulation::Draw()
@@ -186,7 +146,7 @@ void Simulation::Draw()
 			int idx = y * nx + x;
 			if (is_solid[idx])
 			{
-				gfx_.PutPixel(x, ny - y - 1, Colors::Gray * 0.8f);
+				gfx.PutPixel(x, ny - y - 1, Colors::Gray * 0.8f);
 				continue;
 			}
 
@@ -198,7 +158,7 @@ void Simulation::Draw()
 			Color res =
 				(Cell::mc1 * (max_mag - mag) * inv_delta_mag) +
 					Cell::mc2 * ((mag - min_mag) * inv_delta_mag);
-			gfx_.PutPixel(x, ny - y - 1, res); // left top
+			gfx.PutPixel(x, ny - y - 1, res); // left top
 		}
 	}
 
@@ -230,12 +190,12 @@ void Simulation::Draw()
 					continue;
 				}
 
-				gfx_.PutPixel(x, ny - y - 1, Colors::Green * 0.3f);
+				gfx.PutPixel(x, ny - y - 1, Colors::Green * 0.3f);
 
 				Color res = 
 					Colors::Green * (kOneF - (stress - min_stress) / (max_stress - min_stress)) +
 						Colors::Red * ((stress - min_stress) / (max_stress - min_stress));
-				gfx_.PutPixel(x, ny - y - 1, res); // left top
+				gfx.PutPixel(x, ny - y - 1, res); // left top
 			}
 		}
 	}
@@ -259,14 +219,14 @@ void Simulation::Draw()
 			const int idx = IndexP(x, y);
 			if (is_solid[idx])
 			{
-				gfx_.PutPixel(x + nx, ny - y - 1, Colors::Gray * 0.8f);
+				gfx.PutPixel(x + nx, ny - y - 1, Colors::Gray * 0.8f);
 				continue;
 			}
 			Float pressure = p[idx];
 			Color res =
 				(Cell::pc1 * (max_p - pressure) * inv_delta_p) +
 				Cell::pc2 * ((pressure - min_p) * inv_delta_p);
-			gfx_.PutPixel(x + nx, ny - y - 1, res); // right top
+			gfx.PutPixel(x + nx, ny - y - 1, res); // right top
 		}
 	}
 
@@ -274,7 +234,7 @@ void Simulation::Draw()
 	OutputDebugStringA(("Min vel = " + std::to_string(min_mag) + ", max vel = " + std::to_string(max_mag) + "\n").c_str());
 	OutputDebugStringA(("Min stress = " + std::to_string(min_stress) + ", max stress = " + std::to_string(max_stress) + "\n").c_str());
 	OutputDebugStringA(("time passed = " + std::to_string(time_passed) + ", dt = " + std::to_string(dt) + "\n").c_str());
-	OutputDebugStringA(("steps until erosion = " + std::to_string(steps_until_erosion)).c_str());
+	OutputDebugStringA(("Time until erosion = " + std::to_string(time_until_erosion)).c_str());
 	OutputDebugStringA("\n");
 }
 
@@ -407,7 +367,7 @@ void Simulation::ResetEdges()
 
 void Simulation::UpdateVelocities()
 {
-//#pragma omp parallel for
+#pragma omp parallel for
 	for (int y = 1; y < ny - 1; ++y)
 	{
 		for (int x = 1; x < nx - 1; x += 4)
@@ -470,6 +430,9 @@ void Simulation::UpdateVelocities()
 			*(QF*)&v[idx_v] = *(QF*)&vn[idx_v] - v_advec_qf + v_diff_qf + v_acc_qf;
 		}
 	}
+
+	// reset boundary conditions
+	ResetBoundaryConditions();
 }
 
 void Simulation::SolveForPressure()
@@ -477,7 +440,6 @@ void Simulation::SolveForPressure()
 	// iteratively solve for pressure using the poisson equation
 	for (int i = 0; i < niter_jacobi; ++i)
 	{
-		/////////////////////////////////////////////////////////////////////////////
 #pragma omp parallel for
 		for (int y = 1; y < ny - 1; ++y)
 		{
@@ -551,7 +513,7 @@ void Simulation::SolveForPressure()
 
 void Simulation::SubtractPressureGradient()
 {
-//#pragma omp parallel for
+#pragma omp parallel for
 	for (int y = 1; y < ny - 1; ++y)
 	{
 		for (int x = 1; x < nx - 1; x += 4)
@@ -596,6 +558,54 @@ void Simulation::SubtractPressureGradient()
 	}
 }
 
+void Simulation::UpdateErosionProcess()
+{
+	time_passed += dt;
+	time_until_erosion -= dt;
+	if (time_until_erosion <= kZeroF)
+	{
+		ResetBoundaryConditions();
+		CalculateShearStress();
+
+		// calculate position of max stress
+		Float max_stress = kZeroF;
+		Vec2I max_stress_pos = Vec2I(0, 0);
+		for (int y = 1; y < ny - 1; ++y)
+		{
+			for (int x = 1; x < nx - 1; ++x)
+			{
+				if (s[IndexP(x, y)] > max_stress)
+				{
+					max_stress = s[IndexP(x, y)];
+					max_stress_pos.x = x;
+					max_stress_pos.y = y;
+				}
+			}
+		}
+
+		ErodeGeometry(max_stress_pos, erosion_radius);
+		time_until_erosion = convergence_sim_seconds;
+	}
+}
+
+void Simulation::UpdateDeltaTime()
+{
+	Float dt_n = dt;
+	Float max_speed = kZeroF;
+	for (int y = 0; y < ny - 1; ++y)
+	{
+		for (int x = 0; x < nx - 1; ++x)
+		{
+			int idx = y * nx + x;
+			max_speed = Max(u[IndexU(x, y)], max_speed);
+			max_speed = Max(v[IndexV(x, y)], max_speed);
+		}
+	}
+	dt = dx / max_speed;
+	dt = Min(dt_n * kTwoF, dt); // make sure the dt doesn't grow too much
+	dt_qf = mm_set(dt);
+}
+
 void Simulation::CalculateShearStress()
 {
 	Vec2 gradient = Vec2(kZeroF, kZeroF);
@@ -624,14 +634,20 @@ void Simulation::CalculateShearStress()
 
 void Simulation::ErodeGeometry(Vec2I pos, int radius)
 {
-	for (int i = -radius; i < radius + 1; ++i)
+	int32 min_x = Max(pos.x - radius, 0);
+	int32 max_x = Min(pos.x + radius + 1, nx);
+	int32 min_y = Max(pos.y - radius, 0);
+	int32 max_y = Min(pos.y + radius + 1, ny);
+
+	for (int32 y = min_y; y < max_y; ++y)
 	{
-		for (int j = -radius; j < radius + 1; ++j)
+		for (int32 x = min_x; x < max_x; ++x)
 		{
-			if (Vec2I(i, j).Magnitude() <= radius)
+			Vec2I diff = pos - Vec2I(x, y);
+			if (diff.Magnitude() <= radius)
 			{
-				is_solid[IndexP(pos.x + j, pos.y + i)] = false;
-				p[IndexP(pos.x + j, pos.y + i)] = p[IndexP(pos.x, pos.y)];
+				is_solid[IndexP(x, y)] = false;
+				p[IndexP(x, y)] = p[IndexP(pos.x, pos.y)];
 			}
 		}
 	}
