@@ -90,9 +90,6 @@
     <ClInclude Include="MathUtilities.h">
       <Filter>Header Files\Math</Filter>
     </ClInclude>
-    <ClInclude Include="GridStableSolver.h">
-      <Filter>Header Files\Simulation</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Game.cpp">
@@ -126,9 +123,6 @@
       <Filter>Source Files\Simulation</Filter>
     </ClCompile>
     <ClCompile Include="Cell.cpp">
-      <Filter>Source Files\Simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="GridStableSolver.cpp">
       <Filter>Source Files\Simulation</Filter>
     </ClCompile>
   </ItemGroup>
