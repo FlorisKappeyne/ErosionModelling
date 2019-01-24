@@ -21,6 +21,8 @@ private:
 	void SolveForPressure();
 	void UpdateVelocities();
 	void SubtractPressureGradient();
+	void CalculateShearStress();
+	void ErodeGeometry(Vec2I pos, int radius);
 
 	inline QF Average2(const QF& a, const QF& b)
 	{
@@ -84,6 +86,7 @@ private:
 	Float* u, *un;
 	Float* v, *vn;
 	bool* is_solid;
+	Float* s;
 
 	const Float viscosity_;
 	const Float density_;
@@ -96,6 +99,7 @@ private:
 	const Float dx2, dy2;
 	Float dt;
 	Float time_passed;
+	int steps_until_erosion;
 
 	const QF viscosity_qf;
 	const QF density_qf;
@@ -122,6 +126,10 @@ private:
 
 	static constexpr Float const_pressure = 10.0f;
 	static constexpr int niter_jacobi = 50;
+	static constexpr int initial_iterations = 500;
+	static constexpr int convergence_iterations = 100;
+	static constexpr int erosion_radius = 4;
+	static constexpr bool visualize_stress_rt = true;
 
 private:
 	inline int IndexP(int x, int y)

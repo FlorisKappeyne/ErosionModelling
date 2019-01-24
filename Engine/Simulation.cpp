@@ -24,6 +24,7 @@ Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 	dy2(dy * dy),
 	dt(delta_time),
 	time_passed(kZeroF),
+	steps_until_erosion(initial_iterations),
 	viscosity_qf(mm_set(viscosity)),
 	density_qf(mm_set(density)),
 	force_u_qf(mm_set(force_u_)),
@@ -52,6 +53,7 @@ Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 	v = (Float*)_aligned_malloc((ny - 1) * nx * sizeof(Float), 64);
 	vn = (Float*)_aligned_malloc((ny - 1) * nx * sizeof(Float), 64);
 	is_solid = (bool*)_aligned_malloc(nc * sizeof(bool), 64);
+	s = (Float*)_aligned_malloc(nc * sizeof(Float), 64);
 
 	memset(p, 0, nc * sizeof(Float));
 	memset(pn, 0, nc * sizeof(Float));
@@ -60,6 +62,7 @@ Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 	memset(v, 0, (ny - 1) * nx * sizeof(Float));
 	memset(vn, 0, (ny - 1) * nx * sizeof(Float));
 	memset(is_solid, 0, nc * sizeof(bool));
+	memset(s, 0, nc * sizeof(Float));
 
 	// initialize the field
 	InitField();
@@ -74,6 +77,7 @@ Simulation::~Simulation()
 	_aligned_free(v);
 	_aligned_free(vn);
 	_aligned_free(is_solid);
+	_aligned_free(s);
 }
 
 void Simulation::Step()
@@ -118,6 +122,33 @@ void Simulation::Step()
 //	dt = dx / max_speed;
 //	dt = Min(dt_n * kTwoF, dt); // make sure the dt doesn't grow too much
 //	dt_qf = mm_set(dt);
+
+	if (steps_until_erosion == 0)
+	{
+		ResetBoundaryConditions();
+		CalculateShearStress();
+
+		// calculate position of max stress
+		Float max_stress = kZeroF;
+		Vec2I max_stress_pos = Vec2I(0, 0);
+		for (int y = 1; y < ny - 1; ++y)
+		{
+			for (int x = 1; x < nx - 1; ++x)
+			{
+				if (s[IndexP(x, y)] > max_stress)
+				{
+					max_stress = s[IndexP(x, y)];
+					max_stress_pos.x = x;
+					max_stress_pos.y = y;
+				}
+			}
+		}
+
+		ErodeGeometry(max_stress_pos, erosion_radius);
+		steps_until_erosion = convergence_iterations;
+	}
+
+	steps_until_erosion--;
 }
 
 void Simulation::Draw()
@@ -155,7 +186,7 @@ void Simulation::Draw()
 			int idx = y * nx + x;
 			if (is_solid[idx])
 			{
-				gfx_.PutPixel(x, ny - y - 1, Colors::Green * 0.3f);
+				gfx_.PutPixel(x, ny - y - 1, Colors::Gray * 0.8f);
 				continue;
 			}
 
@@ -168,6 +199,44 @@ void Simulation::Draw()
 				(Cell::mc1 * (max_mag - mag) * inv_delta_mag) +
 					Cell::mc2 * ((mag - min_mag) * inv_delta_mag);
 			gfx_.PutPixel(x, ny - y - 1, res); // left top
+		}
+	}
+
+	Float max_stress = kZeroF;
+	Float min_stress = kZeroF;
+	if (visualize_stress_rt)
+	{
+		CalculateShearStress();
+
+		for (int y = 1; y < ny - 1; ++y)
+		{
+			for (int x = 1; x < nx - 1; ++x)
+			{
+				Float stress = s[IndexP(x, y)];
+
+				min_stress = std::min(min_stress, stress);
+				max_stress = std::max(max_stress, stress);
+			}
+		}
+
+		for (int y = 1; y < ny - 1; ++y)
+		{
+			for (int x = 1; x < nx - 1; ++x)
+			{
+				Float stress = s[IndexP(x, y)];
+
+				if (stress == kZeroF)
+				{
+					continue;
+				}
+
+				gfx_.PutPixel(x, ny - y - 1, Colors::Green * 0.3f);
+
+				Color res = 
+					Colors::Green * (kOneF - (stress - min_stress) / (max_stress - min_stress)) +
+						Colors::Red * ((stress - min_stress) / (max_stress - min_stress));
+				gfx_.PutPixel(x, ny - y - 1, res); // left top
+			}
 		}
 	}
 
@@ -203,7 +272,9 @@ void Simulation::Draw()
 
 	OutputDebugStringA(("Min p = " + std::to_string(min_p) + ", max p = " + std::to_string(max_p) + "\n").c_str());
 	OutputDebugStringA(("Min vel = " + std::to_string(min_mag) + ", max vel = " + std::to_string(max_mag) + "\n").c_str());
+	OutputDebugStringA(("Min stress = " + std::to_string(min_stress) + ", max stress = " + std::to_string(max_stress) + "\n").c_str());
 	OutputDebugStringA(("time passed = " + std::to_string(time_passed) + ", dt = " + std::to_string(dt) + "\n").c_str());
+	OutputDebugStringA(("steps until erosion = " + std::to_string(steps_until_erosion)).c_str());
 	OutputDebugStringA("\n");
 }
 
@@ -214,37 +285,37 @@ void Simulation::Draw()
 
 void Simulation::InitField()
 {
-	//for (int y = 1; y < ny - 1; ++y)
-	//{
-	//	Float height_fraction = Float(y) / Float(ny);
-	//	for (int x = 1; x < nx - 1; ++x)
-	//	{
-	//		// control variables
-	//		const Float periods = kOneF;
-	//		const Float width = 0.2f;
-	//		const Float offset = 0.1f;
-	//		const int num_sines = 15;
-	//
-	//		int idx = y * nx + x;
-	//		is_solid[idx] = true;
-	//
-	//		for (int i = 0; i < num_sines; ++i)
-	//		{
-	//			Float fraction = Float(x + i - num_sines / 2) / nx;
-	//			Float height = Sin(fraction * kTwoPi * periods);
-	//			height *= height;
-	//			height *= kOneF - kTwoF * width;
-	//			height += width;
-	//
-	//			if (int((height + offset) * ny) >= y && int((height - offset) * ny) <= y)
-	//			{
-	//				is_solid[idx] = false;
-	//				u[idx] = kZeroF;
-	//				v[idx] = kZeroF;
-	//			}
-	//		}
-	//	}
-	//}
+	for (int y = 1; y < ny - 1; ++y)
+	{
+		Float height_fraction = Float(y) / Float(ny);
+		for (int x = 1; x < nx - 1; ++x)
+		{
+			// control variables
+			const Float periods = kOneF;
+			const Float width = 0.2f;
+			const Float offset = 0.1f;
+			const int num_sines = 15;
+	
+			int idx = y * nx + x;
+			is_solid[idx] = true;
+	
+			for (int i = 0; i < num_sines; ++i)
+			{
+				Float fraction = Float(x + i - num_sines / 2) / nx;
+				Float height = Sin(fraction * kTwoPi * periods);
+				height *= height;
+				height *= kOneF - kTwoF * width;
+				height += width;
+	
+				if (int((height + offset) * ny) >= y && int((height - offset) * ny) <= y)
+				{
+					is_solid[idx] = false;
+					u[idx] = kZeroF;
+					v[idx] = kZeroF;
+				}
+			}
+		}
+	}
 
 	ResetBoundaryConditions();
 }
@@ -283,26 +354,49 @@ void Simulation::ResetBoundaryConditions()
 
 void Simulation::ResetEdges()
 {
+	// wall driven cavity flow
+	//for (int x = 1; x < nx - 1; x += 4)
+	//{
+	//	*(QF*)&p[x] = kZeroQF;
+	//	*(QF*)&u[x] = kOneQF;
+	//	*(QF*)&v[x] = kZeroQF;
+	//
+	//	*(QF*)&p[IndexP(x, ny - 1)] = *(QF*)&p[IndexP(x, ny - 2)];
+	//	*(QF*)&u[IndexU(x, ny - 1)] = kZeroQF;
+	//	*(QF*)&v[IndexV(x, ny - 2)] = kZeroQF;
+	//}
+	//
+	//for (int y = 1; y < ny - 1; ++y)
+	//{
+	//	p[IndexP(0, y)] = p[IndexP(1, y)];
+	//	u[IndexU(0, y)] = kZeroF;
+	//	v[IndexV(0, y)] = kZeroF;
+	//
+	//	p[IndexP(nx - 1, y)] = p[IndexP(nx - 2, y)];
+	//	u[IndexU(nx - 2, y)] = kZeroF;
+	//	v[IndexV(nx - 1, y)] = kZeroF;
+	//}
+
 	for (int x = 1; x < nx - 1; x += 4)
 	{
-		*(QF*)&p[x] = kZeroQF;
-		*(QF*)&u[x] = kOneQF;
+		*(QF*)&p[x] = *(QF*)&p[IndexP(x, 1)];
+		*(QF*)&u[x] = kZeroQF;
 		*(QF*)&v[x] = kZeroQF;
-
+	
 		*(QF*)&p[IndexP(x, ny - 1)] = *(QF*)&p[IndexP(x, ny - 2)];
 		*(QF*)&u[IndexU(x, ny - 1)] = kZeroQF;
 		*(QF*)&v[IndexV(x, ny - 2)] = kZeroQF;
 	}
-
+	
 	for (int y = 1; y < ny - 1; ++y)
 	{
 		p[IndexP(0, y)] = p[IndexP(1, y)];
-		u[IndexU(0, y)] = kZeroF;
+		u[IndexU(0, y)] = kOneF;
 		v[IndexV(0, y)] = kZeroF;
-
-		p[IndexP(nx - 1, y)] = p[IndexP(nx - 2, y)];
-		u[IndexU(nx - 2, y)] = kZeroF;
-		v[IndexV(nx - 1, y)] = kZeroF;
+	
+		p[IndexP(nx - 1, y)] = kZeroF;
+		u[IndexU(nx - 2, y)] = u[IndexU(nx - 3, y)];
+		v[IndexV(nx - 1, y)] = v[IndexV(nx - 2, y)];
 	}
 }
 
@@ -498,6 +592,47 @@ void Simulation::SubtractPressureGradient()
 
 			// y velocity
 			*(QF*)&v[idx_v] = *(QF*)&v[idx_v] - gradient.y;
+		}
+	}
+}
+
+void Simulation::CalculateShearStress()
+{
+	Vec2 gradient = Vec2(kZeroF, kZeroF);
+
+	for (int y = 1; y < ny - 1; ++y)
+	{
+		for (int x = 1; x < nx - 1; ++x)
+		{
+			gradient.x = kZeroF;
+			gradient.y = kZeroF;
+
+			if (is_solid[IndexP(x, y - 1)] || is_solid[IndexP(x, y + 1)])
+			{
+				gradient.x = u[IndexU(x, y)] - u[IndexU(x, y - 1)];
+			}
+
+			if (is_solid[IndexP(x - 1, y)] || is_solid[IndexP(x + 1, y)])
+			{
+				gradient.y = v[IndexV(x, y)] - v[IndexV(x, y - 1)];
+			}
+
+			s[IndexP(x, y)] = gradient.Magnitude();
+		}
+	}
+}
+
+void Simulation::ErodeGeometry(Vec2I pos, int radius)
+{
+	for (int i = -radius; i < radius + 1; ++i)
+	{
+		for (int j = -radius; j < radius + 1; ++j)
+		{
+			if (Vec2I(i, j).Magnitude() <= radius)
+			{
+				is_solid[IndexP(pos.x + j, pos.y + i)] = false;
+				p[IndexP(pos.x + j, pos.y + i)] = p[IndexP(pos.x, pos.y)];
+			}
 		}
 	}
 }

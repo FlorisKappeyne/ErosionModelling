@@ -45,12 +45,12 @@ void Game::Go()
 
 void Game::UpdateModel()
 {
-	for (int i = 0; i < steps_per_frame * time_multiplier; ++i)
-	{
-		sim_.Step();
-	}
+	//for (int i = 0; i < steps_per_frame * time_multiplier; ++i)
+	//{
+	//	sim_.Step();
+	//}
 
-	//sim_.Step();
+	sim_.Step();
 	//static int steps = 0;
 	//if (steps < 100)
 	//{
