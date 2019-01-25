@@ -19,9 +19,12 @@ public:
 	Float erosion_step_time; 
 
 	// simulation params
+	int nx;
+	int ny;
 	Float force_u;
 	Float force_v;
-	Float field_size;
+	Float field_size_x;
+	Float field_size_y;
 	Float lid_speed;
 	Float inlet_velocity;
 	Float outlet_pressure;

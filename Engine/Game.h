@@ -41,8 +41,8 @@ private:
 	MainWindow& wnd;
 	Graphics gfx;
 
-	int steps_per_second = 300;
-	int time_multiplier = 10;
+	Float steps_per_second;
+	Float time_multiplier;
 	int steps_per_frame;
 	Simulation sim;
 };

@@ -73,6 +73,6 @@ private:
 	D3D11_MAPPED_SUBRESOURCE							mappedSysBufferTexture;
 	Color*                                              pSysBuffer = nullptr;
 public:
-	static constexpr int ScreenHeight = 256 + 2; // simulation of 256 x 256
-	static constexpr int ScreenWidth = ScreenHeight * 2;
+	const int ScreenHeight;
+	const int ScreenWidth;
 };

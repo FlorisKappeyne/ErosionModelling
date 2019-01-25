@@ -28,12 +28,12 @@ Simulation::Simulation(Graphics& gfx, Params& params)
 	convergence_sim_seconds(params.erosion_step_time),
 
 	// simulation params
-	dim(params.field_size, params.field_size),
-	nx(gfx.ScreenHeight),
-	ny(gfx.ScreenHeight),
+	dim(params.field_size_x, params.field_size_y),
+	nx(params.nx),
+	ny(params.ny),
 	nc(nx * ny),
-	dx(params.field_size / nx),
-	dy(params.field_size / ny),
+	dx(params.field_size_x / nx),
+	dy(params.field_size_y / ny),
 	dx2(dx * dx),
 	dy2(dy * dy),
 	force_u(params.force_u),

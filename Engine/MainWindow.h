@@ -50,7 +50,7 @@ public:
 		virtual std::wstring GetExceptionType() const override { return L"Windows Exception"; }
 	};
 public:
-	MainWindow( HINSTANCE hInst,wchar_t* pArgs );
+	MainWindow( HINSTANCE hInst,wchar_t* pArgs, int x, int y );
 	MainWindow( const MainWindow& ) = delete;
 	MainWindow& operator=( const MainWindow& ) = delete;
 	~MainWindow();
@@ -74,6 +74,7 @@ private:
 public:
 	Keyboard kbd;
 	Mouse mouse;
+	int ScreenWidth, ScreenHeight;
 private:
 	static constexpr wchar_t* wndClassName = L"Chili DirectX Framework Window";
 	HINSTANCE hInst = nullptr;

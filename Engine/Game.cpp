@@ -28,7 +28,9 @@ Game::Game(MainWindow& wnd, Params& params)
 	wnd(wnd),
 	gfx(wnd),
 	sim(gfx, params),
-	steps_per_frame(Max(steps_per_second / 60, 1))
+	steps_per_second(params.steps_per_second),
+	time_multiplier(kOneF),
+	steps_per_frame((int)Max(steps_per_second / (Float)60.0f, kOneF))
 {
 }
 

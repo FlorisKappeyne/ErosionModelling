@@ -21,6 +21,7 @@
 #include "MainWindow.h"
 #include "Game.h"
 #include "ChiliException.h"
+#include <algorithm>
 
 int WINAPI wWinMain( HINSTANCE hInst,HINSTANCE,LPWSTR pArgs,INT )
 {
@@ -33,9 +34,12 @@ int WINAPI wWinMain( HINSTANCE hInst,HINSTANCE,LPWSTR pArgs,INT )
 	params.steps_per_second = 3000.0f;
 	params.init_time = 5.0f;
 	params.erosion_step_time = 1.0f;
+	params.nx = 256;
+	params.ny = 256;
 	params.force_u = 0.0f;
 	params.force_v = 0.0f;
-	params.field_size = 16.0f;
+	params.field_size_x = 16.0f;
+	params.field_size_y = 16.0f;
 	params.lid_speed = 1.0f;
 	params.inlet_velocity = 1.0f;
 	params.outlet_pressure = 0.0f;
@@ -44,7 +48,7 @@ int WINAPI wWinMain( HINSTANCE hInst,HINSTANCE,LPWSTR pArgs,INT )
 
 	try
 	{
-		MainWindow wnd( hInst,pArgs );		
+		MainWindow wnd( hInst,pArgs, params.nx, params.ny );		
 		try
 		{
 			Game theGame( wnd, params );
