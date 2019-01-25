@@ -27,6 +27,7 @@ private:
 	void UpdateDeltaTime();
 	void CalculateShearStress();
 	void ErodeGeometry(Vec2I pos);
+	void Sedimentate(int n_cells);
 
 private:
 	// buffers
