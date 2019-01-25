@@ -1,7 +1,120 @@
 #include "Params.h"
+#include <fstream>
+#include <vector>
+
+void GetAll(const std::string& line, std::vector<std::string>& output)
+{
+
+}
+void GetAll(const std::string& line, std::vector<Float>& output)
+{
+
+}
+void GetAll(const std::string& line, std::vector<int>& output)
+{
+
+}
 
 Params * LoadParams(const std::string & file_name, int& n_params)
 {
+	std::string line;
+	std::ifstream readFile("params.txt");
+
+	std::vector<std::string> file_name_input;
+	std::vector<std::string> file_name_output;
+	std::vector<Float> viscosity;
+	std::vector<Float> density;
+	std::vector<Float> steps_per_second;
+	std::vector<Float> init_time;
+	std::vector<Float> erosion_step_timef;
+	std::vector<int> nx;
+	std::vector<int> ny;
+	std::vector<Float> force_u;
+	std::vector<Float> force_v;
+	std::vector<Float> field_size_x;
+	std::vector<Float> field_size_y;
+	std::vector<Float> lid_speed;
+	std::vector<Float> inlet_velocity;
+	std::vector<Float> outlet_pressure;
+	std::vector<int> erosion_radius;
+	std::vector<int> niter_jacobi;
+
+	while (std::getline(readFile, line, '='))
+	{
+		if (line == "file_name_input")
+		{
+
+		}
+		else if (line == "file_name_output")
+		{
+
+		}
+		else if (line == "viscosity")
+		{
+
+		}
+		else if (line == "density")
+		{
+
+		}
+		else if (line == "steps_per_second")
+		{
+
+		}
+		else if (line == "init_time")
+		{
+
+		}
+		else if (line == "erosion_step_time")
+		{
+
+		}
+		else if (line == "nx")
+		{
+
+		}
+		else if (line == "ny")
+		{
+
+		}
+		else if (line == "force_u")
+		{
+
+		}
+		else if (line == "force_v")
+		{
+
+		}
+		else if (line == "field_size_x")
+		{
+
+		}
+		else if (line == "field_size_y")
+		{
+
+		}
+		else if (line == "lid_speed")
+		{
+
+		}
+		else if (line == "inlet_velocity")
+		{
+
+		}
+		else if (line == "outlet_pressure")
+		{
+
+		}
+		else if (line == "erosion_radius")
+		{
+
+		}
+		else if (line == "niter_jacobi")
+		{
+
+		}
+	}
+
 	Params* res = new Params[1];
 
 	res->file_name_input = "test.png";
