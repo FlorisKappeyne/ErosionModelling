@@ -21,7 +21,9 @@ public:
 	static constexpr Color pc1 = Colors::Black;
 	static constexpr Color pc2 = Colors::Green;
 
-	// colors to interpolate between based on the precalculated shizzle
-	static constexpr Color bc1 = Colors::Black;
-	static constexpr Color bc2 = Colors::Red;
+	// colors to interpolate between speed
+	static constexpr Color uc1 = Colors::Black;
+	static constexpr Color uc2 = Colors::Red;
+	static constexpr Color vc1 = Colors::Black;
+	static constexpr Color vc2 = Colors::Green;
 };

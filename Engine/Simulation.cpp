@@ -169,7 +169,7 @@ void Simulation::Draw()
 			int idx = y * nx + x;
 			if (is_solid[idx])
 			{
-				gfx.PutPixel(x, ny - y - 1, Colors::Gray * 0.8f);
+				gfx.PutPixel(x, ny - y - 1, Colors::Green * 0.3f);
 				continue;
 			}
 
@@ -185,6 +185,49 @@ void Simulation::Draw()
 		}
 	}
 
+	// plot velocity
+	Float min_u = u[0], max_u = u[0];
+
+	for (int y = 1; y < ny - 1; ++y)
+	{
+		for (int x = 1; x < nx - 1; ++x)
+		{
+			Float avg_u = (u[IndexU(x - 1, y)] + u[IndexU(x, y)]) / kTwoF;
+			Float avg_v = (v[IndexV(x, y - 1)] + v[IndexV(x, y)]) / kTwoF;
+
+			min_u = std::min(min_u, avg_u);
+			max_u = std::max(max_u, avg_u);
+															
+			min_u = std::min(min_u, avg_v);
+			max_u = std::max(max_u, avg_v);
+		}
+	}
+
+	Float inv_delta_u = 1 / (max_u - min_u);
+	for (int y = 1; y < ny - 1; ++y)
+	{
+		for (int x = 1; x < nx - 1; ++x)
+		{
+			int idx = y * nx + x;
+			if (is_solid[idx])
+			{
+				gfx.PutPixel(x, ny * 2 - y - 1, Colors::Blue * 0.3f);
+				continue;
+			}
+
+			Float speed_u = (u[IndexU(x - 1, y)] + u[IndexU(x, y)]) / kTwoF;
+			Float speed_v = (v[IndexV(x, y - 1)] + v[IndexV(x, y)]) / kTwoF;
+
+			Color res =
+				(Cell::uc1 * (max_u - speed_u) * inv_delta_u) +
+				Cell::uc2 * ((speed_u - min_u) * inv_delta_u) + 
+				(Cell::vc1 * (max_u - speed_v) * inv_delta_u) +
+				Cell::vc2 * ((speed_v - min_u) * inv_delta_u);
+			gfx.PutPixel(x, ny * 2 - y - 1, res); // left bottom
+		}
+	}
+
+	// plot stress
 	Float max_stress = kZeroF;
 	Float min_stress = kZeroF;
 	if (visualize_stress_rt)
@@ -218,7 +261,7 @@ void Simulation::Draw()
 				Color res =
 					Colors::Green * (kOneF - (stress - min_stress) / (max_stress - min_stress)) +
 					Colors::Red * ((stress - min_stress) / (max_stress - min_stress));
-				gfx.PutPixel(x, ny - y - 1, res); // left top
+				gfx.PutPixel(x + nx, ny * 2 - y - 1, res); // right bottom
 			}
 		}
 	}
