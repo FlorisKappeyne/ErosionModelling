@@ -27,7 +27,7 @@ int WINAPI wWinMain( HINSTANCE hInst,HINSTANCE,LPWSTR pArgs,INT )
 {
 
 	Params params;
-	params.file_name_input = "";
+	params.file_name_input = "test.png";
 	params.file_name_output = "output.buf";
 	params.viscosity = 0.0089f;
 	params.density = 997.0f;

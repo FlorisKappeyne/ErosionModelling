@@ -29,8 +29,8 @@ Simulation::Simulation(Graphics& gfx, Params& params)
 
 	// simulation params
 	dim(params.field_size_x, params.field_size_y),
-	nx(params.nx),
-	ny(params.ny),
+	nx(params.nx + 2),
+	ny(params.ny + 2),
 	nc(nx * ny),
 	dx(params.field_size_x / nx),
 	dy(params.field_size_y / ny),
@@ -301,11 +301,8 @@ void Simulation::InitField(const std::string& file_name)
 					}
 				}
 			}
+			stbi_image_free(data);
 		}
-		// x = width, y = height, n = # 8-bit components per pixel
-		// ... replace '0' with '1'..'4' to force that many components per pixel
-		// ... but 'n' will always be the number that it would have been if you said 0
-		stbi_image_free(data);
 	}
 
 	// re-initialize the boundary conditions 
@@ -354,18 +351,18 @@ void Simulation::ResetEdges()
 			*(QF*)&p[x] = kZeroQF;
 			*(QF*)&u[x] = mm_set(lid_speed);
 			*(QF*)&v[x] = kZeroQF;
-		
+
 			*(QF*)&p[IndexP(x, ny - 1)] = *(QF*)&p[IndexP(x, ny - 2)];
 			*(QF*)&u[IndexU(x, ny - 1)] = kZeroQF;
 			*(QF*)&v[IndexV(x, ny - 2)] = kZeroQF;
 		}
-		
+
 		for (int y = 1; y < ny - 1; ++y)
 		{
 			p[IndexP(0, y)] = p[IndexP(1, y)];
 			u[IndexU(0, y)] = kZeroF;
 			v[IndexV(0, y)] = kZeroF;
-		
+
 			p[IndexP(nx - 1, y)] = p[IndexP(nx - 2, y)];
 			u[IndexU(nx - 2, y)] = kZeroF;
 			v[IndexV(nx - 1, y)] = kZeroF;
