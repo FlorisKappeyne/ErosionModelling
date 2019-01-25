@@ -3,28 +3,48 @@
 #include <memory>
 #include <Windows.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // Simulation
 ///////////////////////////////////////////////////////////////////////////////
 
-Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
-	Float ds, Float delta_time)
+Simulation::Simulation(Graphics& gfx, Params& params)
 	:
-	viscosity(viscosity),
-	density(density),
-	force_u(0.0f),
-	force_v(0.0f),
+	// file I/O
+	file_name_input(params.file_name_input),
+	file_name_output(params.file_name_output),
+
+	// fluid params
+	viscosity(params.viscosity),
+	density(params.density),
+
+	// time control params
+	dt(kOneF / params.steps_per_second),
+	time_passed(kZeroF),
+	time_until_erosion(params.init_time),
+	convergence_sim_seconds(params.erosion_step_time),
+
+	// simulation params
+	dim(params.field_size, params.field_size),
 	nx(gfx.ScreenHeight),
 	ny(gfx.ScreenHeight),
 	nc(nx * ny),
-	dx(ds),
-	dy(ds),
+	dx(params.field_size / nx),
+	dy(params.field_size / ny),
 	dx2(dx * dx),
 	dy2(dy * dy),
-	dt(delta_time),
-	time_passed(kZeroF),
-	time_until_erosion(initial_sim_seconds),
+	force_u(params.force_u),
+	force_v(params.force_v),
+	lid_speed(params.lid_speed),
+	inlet_velocity(params.inlet_velocity),
+	outlet_pressure(params.outlet_pressure),
+	erosion_radius(params.erosion_radius),
+	niter_jacobi(params.niter_jacobi),
+
+	// quadfloat precalculations
 	viscosity_qf(mm_set(viscosity)),
 	density_qf(mm_set(density)),
 	force_u_qf(mm_set(force_u)),
@@ -34,11 +54,14 @@ Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 	dx2_qf(mm_set(dx * dx)),
 	dy2_qf(mm_set(dy * dy)),
 	dt_qf(mm_set(dt)),
+
 	ones(mm_set(Int(-1))),
 	zeros(mm_set(Int(0))),
 	kTwoQF(mm_set(kTwoF)),
 	kOneQF(mm_set(kOneF)),
 	kZeroQF(mm_set(kZeroF)),
+
+	// graphics vars
 	min_mag(kZeroF),
 	max_mag(kZeroF),
 	min_p(kZeroF),
@@ -65,7 +88,7 @@ Simulation::Simulation(Graphics& gfx, Float viscosity, Float density,
 	memset(s, 0, nc * sizeof(Float));
 
 	// initialize the field
-	InitField();
+	InitField(file_name_input);
 }
 
 Simulation::~Simulation()
@@ -157,7 +180,7 @@ void Simulation::Draw()
 
 			Color res =
 				(Cell::mc1 * (max_mag - mag) * inv_delta_mag) +
-					Cell::mc2 * ((mag - min_mag) * inv_delta_mag);
+				Cell::mc2 * ((mag - min_mag) * inv_delta_mag);
 			gfx.PutPixel(x, ny - y - 1, res); // left top
 		}
 	}
@@ -192,9 +215,9 @@ void Simulation::Draw()
 
 				gfx.PutPixel(x, ny - y - 1, Colors::Green * 0.3f);
 
-				Color res = 
+				Color res =
 					Colors::Green * (kOneF - (stress - min_stress) / (max_stress - min_stress)) +
-						Colors::Red * ((stress - min_stress) / (max_stress - min_stress));
+					Colors::Red * ((stress - min_stress) / (max_stress - min_stress));
 				gfx.PutPixel(x, ny - y - 1, res); // left top
 			}
 		}
@@ -243,40 +266,49 @@ void Simulation::Draw()
 // Boundary control
 ///////////////////////////////////////////////////////////////////////////////
 
-void Simulation::InitField()
+void Simulation::InitField(const std::string& file_name)
 {
-	for (int y = 1; y < ny - 1; ++y)
+	// choose between cavity flow or image
+	do_cavity_flow = file_name_input.empty();
+
+	if (do_cavity_flow == false)
 	{
-		Float height_fraction = Float(y) / Float(ny);
-		for (int x = 1; x < nx - 1; ++x)
+		// load an image
+		stbi_set_flip_vertically_on_load(true);
+
+		int width, height, n;
+		// always load with 4 channels (rgba, so we can cast to int)
+
+		unsigned char *data = stbi_load(file_name.c_str(), &width, &height, &n, 4);
+		if (data != nullptr)
 		{
-			// control variables
-			const Float periods = kOneF;
-			const Float width = 0.2f;
-			const Float offset = 0.1f;
-			const int num_sines = 15;
-	
-			int idx = y * nx + x;
-			is_solid[idx] = true;
-	
-			for (int i = 0; i < num_sines; ++i)
+			assert(width == 256 && height == 256);
+
+			int img_idx = 0;
+			for (int y = 0; y < height; ++y)
 			{
-				Float fraction = Float(x + i - num_sines / 2) / nx;
-				Float height = Sin(fraction * kTwoPi * periods);
-				height *= height;
-				height *= kOneF - kTwoF * width;
-				height += width;
-	
-				if (int((height + offset) * ny) >= y && int((height - offset) * ny) <= y)
+				for (int x = 0; x < width; ++x, ++img_idx)
 				{
-					is_solid[idx] = false;
-					u[idx] = kZeroF;
-					v[idx] = kZeroF;
+					int idx = IndexP(x + 1, y + 1);
+					int color = ((int*)data)[img_idx];
+					//color = color >> 8; // shift out the alpha value
+					// r-g-b-a
+					if (color == 0xffffffff)
+					{
+						is_solid[idx] = true;
+						u[idx] = kZeroF;
+						v[idx] = kZeroF;
+					}
 				}
 			}
 		}
+		// x = width, y = height, n = # 8-bit components per pixel
+		// ... replace '0' with '1'..'4' to force that many components per pixel
+		// ... but 'n' will always be the number that it would have been if you said 0
+		stbi_image_free(data);
 	}
 
+	// re-initialize the boundary conditions 
 	ResetBoundaryConditions();
 }
 
@@ -315,48 +347,53 @@ void Simulation::ResetBoundaryConditions()
 void Simulation::ResetEdges()
 {
 	// wall driven cavity flow
-	//for (int x = 1; x < nx - 1; x += 4)
-	//{
-	//	*(QF*)&p[x] = kZeroQF;
-	//	*(QF*)&u[x] = kOneQF;
-	//	*(QF*)&v[x] = kZeroQF;
-	//
-	//	*(QF*)&p[IndexP(x, ny - 1)] = *(QF*)&p[IndexP(x, ny - 2)];
-	//	*(QF*)&u[IndexU(x, ny - 1)] = kZeroQF;
-	//	*(QF*)&v[IndexV(x, ny - 2)] = kZeroQF;
-	//}
-	//
-	//for (int y = 1; y < ny - 1; ++y)
-	//{
-	//	p[IndexP(0, y)] = p[IndexP(1, y)];
-	//	u[IndexU(0, y)] = kZeroF;
-	//	v[IndexV(0, y)] = kZeroF;
-	//
-	//	p[IndexP(nx - 1, y)] = p[IndexP(nx - 2, y)];
-	//	u[IndexU(nx - 2, y)] = kZeroF;
-	//	v[IndexV(nx - 1, y)] = kZeroF;
-	//}
-
-	for (int x = 1; x < nx - 1; x += 4)
+	if (do_cavity_flow == true)
 	{
-		*(QF*)&p[x] = *(QF*)&p[IndexP(x, 1)];
-		*(QF*)&u[x] = kZeroQF;
-		*(QF*)&v[x] = kZeroQF;
-	
-		*(QF*)&p[IndexP(x, ny - 1)] = *(QF*)&p[IndexP(x, ny - 2)];
-		*(QF*)&u[IndexU(x, ny - 1)] = kZeroQF;
-		*(QF*)&v[IndexV(x, ny - 2)] = kZeroQF;
+		for (int x = 1; x < nx - 1; x += 4)
+		{
+			*(QF*)&p[x] = kZeroQF;
+			*(QF*)&u[x] = mm_set(lid_speed);
+			*(QF*)&v[x] = kZeroQF;
+		
+			*(QF*)&p[IndexP(x, ny - 1)] = *(QF*)&p[IndexP(x, ny - 2)];
+			*(QF*)&u[IndexU(x, ny - 1)] = kZeroQF;
+			*(QF*)&v[IndexV(x, ny - 2)] = kZeroQF;
+		}
+		
+		for (int y = 1; y < ny - 1; ++y)
+		{
+			p[IndexP(0, y)] = p[IndexP(1, y)];
+			u[IndexU(0, y)] = kZeroF;
+			v[IndexV(0, y)] = kZeroF;
+		
+			p[IndexP(nx - 1, y)] = p[IndexP(nx - 2, y)];
+			u[IndexU(nx - 2, y)] = kZeroF;
+			v[IndexV(nx - 1, y)] = kZeroF;
+		}
 	}
-	
-	for (int y = 1; y < ny - 1; ++y)
+	else
 	{
-		p[IndexP(0, y)] = p[IndexP(1, y)];
-		u[IndexU(0, y)] = kOneF;
-		v[IndexV(0, y)] = kZeroF;
-	
-		p[IndexP(nx - 1, y)] = kZeroF;
-		u[IndexU(nx - 2, y)] = u[IndexU(nx - 3, y)];
-		v[IndexV(nx - 1, y)] = v[IndexV(nx - 2, y)];
+		for (int x = 1; x < nx - 1; x += 4)
+		{
+			*(QF*)&p[x] = *(QF*)&p[IndexP(x, 1)];
+			*(QF*)&u[x] = kZeroQF;
+			*(QF*)&v[x] = kZeroQF;
+
+			*(QF*)&p[IndexP(x, ny - 1)] = *(QF*)&p[IndexP(x, ny - 2)];
+			*(QF*)&u[IndexU(x, ny - 1)] = kZeroQF;
+			*(QF*)&v[IndexV(x, ny - 2)] = kZeroQF;
+		}
+
+		for (int y = 1; y < ny - 1; ++y)
+		{
+			p[IndexP(0, y)] = p[IndexP(1, y)];
+			u[IndexU(0, y)] = inlet_velocity;
+			v[IndexV(0, y)] = kZeroF;
+
+			p[IndexP(nx - 1, y)] = outlet_pressure;
+			u[IndexU(nx - 2, y)] = u[IndexU(nx - 3, y)];
+			v[IndexV(nx - 1, y)] = v[IndexV(nx - 2, y)];
+		}
 	}
 }
 
@@ -583,7 +620,7 @@ void Simulation::UpdateErosionProcess()
 			}
 		}
 
-		ErodeGeometry(max_stress_pos, erosion_radius);
+		ErodeGeometry(max_stress_pos);
 		time_until_erosion = convergence_sim_seconds;
 	}
 }
@@ -632,19 +669,19 @@ void Simulation::CalculateShearStress()
 	}
 }
 
-void Simulation::ErodeGeometry(Vec2I pos, int radius)
+void Simulation::ErodeGeometry(Vec2I pos)
 {
-	int32 min_x = Max(pos.x - radius, 0);
-	int32 max_x = Min(pos.x + radius + 1, nx);
-	int32 min_y = Max(pos.y - radius, 0);
-	int32 max_y = Min(pos.y + radius + 1, ny);
+	int32 min_x = Max(pos.x - erosion_radius, 0);
+	int32 max_x = Min(pos.x + erosion_radius + 1, nx);
+	int32 min_y = Max(pos.y - erosion_radius, 0);
+	int32 max_y = Min(pos.y + erosion_radius + 1, ny);
 
 	for (int32 y = min_y; y < max_y; ++y)
 	{
 		for (int32 x = min_x; x < max_x; ++x)
 		{
 			Vec2I diff = pos - Vec2I(x, y);
-			if (diff.Magnitude() <= radius)
+			if (diff.Magnitude() <= erosion_radius)
 			{
 				is_solid[IndexP(x, y)] = false;
 				p[IndexP(x, y)] = p[IndexP(pos.x, pos.y)];

@@ -31,6 +31,9 @@
     <Filter Include="Source Files\Simulation">
       <UniqueIdentifier>{1ada6369-a571-430e-8851-f6bcc74f13ad}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Libraries">
+      <UniqueIdentifier>{eab88c1a-4a2d-447d-b455-3d2ff82ad1b9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Game.h">
@@ -89,6 +92,12 @@
     </ClInclude>
     <ClInclude Include="MathUtilities.h">
       <Filter>Header Files\Math</Filter>
+    </ClInclude>
+    <ClInclude Include="stb_image.h">
+      <Filter>Header Files\Libraries</Filter>
+    </ClInclude>
+    <ClInclude Include="Params.h">
+      <Filter>Header Files\Simulation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

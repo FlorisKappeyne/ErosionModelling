@@ -24,11 +24,12 @@
 #include "Mouse.h"
 #include "Graphics.h"
 #include "Simulation.h"
+#include "Params.h"
 
 class Game
 {
 public:
-	Game( class MainWindow& wnd );
+	Game( class MainWindow& wnd, Params& params);
 	Game( const Game& ) = delete;
 	Game& operator=( const Game& ) = delete;
 	void Go();
@@ -40,7 +41,7 @@ private:
 	MainWindow& wnd;
 	Graphics gfx;
 
-	int steps_per_second = 1500;
+	int steps_per_second = 300;
 	int time_multiplier = 10;
 	int steps_per_frame;
 	Simulation sim;

@@ -1,12 +1,13 @@
 #pragma once
 #include "Cell.h"
 #include "Graphics.h"
+#include "Params.h"
+#include <string>
 
 class Simulation
 {
 public:
-	Simulation(Graphics& gfx, Float viscosity, Float density,
-		Float ds, Float delta_time);
+	Simulation(Graphics& gfx, Params& params);
 	~Simulation();
 
 	void Step();
@@ -14,7 +15,7 @@ public:
 
 private:
 	// field control
-	void InitField();
+	void InitField(const std::string& file_name);
 	void ResetBoundaryConditions();
 	void ResetEdges();
 
@@ -24,27 +25,47 @@ private:
 	void SubtractPressureGradient();
 	void UpdateErosionProcess();
 	void UpdateDeltaTime();
+	void CalculateShearStress();
+	void ErodeGeometry(Vec2I pos);
 
 private:
+	// buffers
 	Float* p, *pn;
 	Float* u, *un;
 	Float* v, *vn;
 	Float* s;
 	bool* is_solid;
 
+	// I/O
+	std::string file_name_input;
+	std::string file_name_output;
+
+	// fluid params
 	const Float viscosity;
 	const Float density;
-	const Float force_u;
-	const Float force_v;
-	const Vec2I dim;
+
+	// time control params
+	Float dt;
+	Float time_passed;
+	Float time_until_erosion;
+	Float convergence_sim_seconds;
+
+	// simulation params
+	const Vec2 dim;
 	const int nx, ny;
 	const int nc; // number of cells
 	const Float dx, dy;
 	const Float dx2, dy2;
-	Float dt;
-	Float time_passed;
-	Float time_until_erosion;
+	const Float force_u;
+	const Float force_v;
+	const Float lid_speed;
+	const Float inlet_velocity;
+	const Float outlet_pressure;
+	int erosion_radius;
+	int niter_jacobi;
+	bool do_cavity_flow;
 
+	// quadfloat precalculations
 	const QF viscosity_qf;
 	const QF density_qf;
 	const QF force_u_qf;
@@ -58,25 +79,18 @@ private:
 	const QF kTwoQF;
 	const QF kOneQF;
 	const QF kZeroQF;
-	Graphics& gfx;
 
+	// graphics
 	Float min_mag;
 	Float max_mag;
-
 	Float min_p;
 	Float max_p;
 	bool drawing_vars_initialized;
+	Graphics& gfx;
 
-	static constexpr int niter_jacobi = 80;
-	static constexpr Float initial_sim_seconds = 5;
-	static constexpr Float convergence_sim_seconds = 1;
-	static constexpr int erosion_radius = 4;
 	static constexpr bool visualize_stress_rt = true;
 
 private:
-	void CalculateShearStress();
-	void ErodeGeometry(Vec2I pos, int radius);
-
 	inline QF Average2(const QF& a, const QF& b)
 	{
 		return (a + b) / kTwoQF;

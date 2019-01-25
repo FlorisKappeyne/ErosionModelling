@@ -152,10 +152,12 @@
     <ClInclude Include="MainWindow.h" />
     <ClInclude Include="MathUtilities.h" />
     <ClInclude Include="Mouse.h" />
+    <ClInclude Include="Params.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="Simulation.h" />
     <ClInclude Include="Sound.h" />
     <ClInclude Include="SoundEffect.h" />
+    <ClInclude Include="stb_image.h" />
     <ClInclude Include="Typedefs.h" />
     <ClInclude Include="Vec2.h" />
     <ClInclude Include="Vec3.h" />

@@ -23,11 +23,11 @@
 #include "Vec2.h"
 #include "MathUtilities.h"
 
-Game::Game(MainWindow& wnd)
+Game::Game(MainWindow& wnd, Params& params)
 	:
 	wnd(wnd),
 	gfx(wnd),
-	sim(gfx, 8.9e-4f, 997.0f, 1600.0f / (Float)gfx.ScreenHeight, kOneF / (Float)steps_per_second),
+	sim(gfx, params),
 	steps_per_frame(Max(steps_per_second / 60, 1))
 {
 }
