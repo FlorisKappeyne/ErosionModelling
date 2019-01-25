@@ -32,6 +32,8 @@ public:
 	int niter_jacobi;
 };
 
+Params* LoadParams(const std::string& file_name, int& n_params);
+
 // todo:
 /*
 better output

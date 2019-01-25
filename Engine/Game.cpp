@@ -23,13 +23,16 @@
 #include "Vec2.h"
 #include "MathUtilities.h"
 
-Game::Game(MainWindow& wnd, Params& params)
+Game::Game(MainWindow& wnd, Params* parameters, int params_count)
 	:
+	sim_done(false),
 	wnd(wnd),
 	gfx(wnd),
-	sim(gfx, params),
-	steps_per_second(params.steps_per_second),
-	time_multiplier(kOneF),
+	params(parameters),
+	n_params(params_count),
+	param_iter(0),
+	sim(new Simulation(gfx, params[0])),
+	steps_per_second(params[0].steps_per_second),
 	steps_per_frame((int)Max(steps_per_second / (Float)60.0f, kOneF))
 {
 }
@@ -44,14 +47,27 @@ void Game::Go()
 
 void Game::UpdateModel()
 {
-	for (int i = 0; i < steps_per_frame * time_multiplier; ++i)
+	if (sim->GetTimePassed() > 300.0f)
 	{
-		sim.Step();
+		param_iter++;
+		if (param_iter == n_params)
+		{
+			sim_done = true;
+		}
+		delete sim;
+		sim = new Simulation(gfx, params[param_iter]);
+		steps_per_second = params[param_iter].steps_per_second;
+		steps_per_frame = (int)Max(steps_per_second / (Float)60.0f, kOneF);
+	}
+
+	for (int i = 0; i < steps_per_frame; ++i)
+	{
+		sim->Step();
 	}
 	//sim.Step();
 }
 
 void Game::ComposeFrame()
 {
-	sim.Draw();
+	sim->Draw();
 }

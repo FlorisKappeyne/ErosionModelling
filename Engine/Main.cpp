@@ -25,32 +25,16 @@
 
 int WINAPI wWinMain( HINSTANCE hInst,HINSTANCE,LPWSTR pArgs,INT )
 {
-	Params params;
-	params.file_name_input = "test.png";
-	params.file_name_output = "output.buf";
-	params.viscosity = 0.089f;
-	params.density = 997.0f;
-	params.steps_per_second = 3000.0f;
-	params.init_time = 5.0f;
-	params.erosion_step_time = 1.0f;
-	params.nx = 256;
-	params.ny = 256;
-	params.force_u = 0.0f;
-	params.force_v = 0.0f;
-	params.field_size_x = 16.0f;
-	params.field_size_y = 16.0f;
-	params.lid_speed = 1.0f;
-	params.inlet_velocity = 1.0f;
-	params.outlet_pressure = 0.0f;
-	params.erosion_radius = 4;
-	params.niter_jacobi = 160;
+	int n_params = 0;
+	Params* params = LoadParams("params.txt", n_params);
+
 
 	try
 	{
-		MainWindow wnd( hInst,pArgs, params.nx, params.ny );		
+		MainWindow wnd( hInst,pArgs, params[0].nx, params[0].ny );		
 		try
 		{
-			Game theGame( wnd, params );
+			Game theGame( wnd, params, n_params);
 			while( wnd.ProcessMessage() )
 			{
 				theGame.Go();
