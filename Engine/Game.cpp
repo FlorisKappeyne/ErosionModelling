@@ -48,6 +48,7 @@ void Game::UpdateModel()
 	{
 		sim.Step();
 	}
+	//sim.Step();
 }
 
 void Game::ComposeFrame()

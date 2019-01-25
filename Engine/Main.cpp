@@ -25,7 +25,6 @@
 
 int WINAPI wWinMain( HINSTANCE hInst,HINSTANCE,LPWSTR pArgs,INT )
 {
-
 	Params params;
 	params.file_name_input = "test.png";
 	params.file_name_output = "output.buf";
@@ -44,7 +43,7 @@ int WINAPI wWinMain( HINSTANCE hInst,HINSTANCE,LPWSTR pArgs,INT )
 	params.inlet_velocity = 1.0f;
 	params.outlet_pressure = 0.0f;
 	params.erosion_radius = 4;
-	params.niter_jacobi = 80;
+	params.niter_jacobi = 160;
 
 	try
 	{

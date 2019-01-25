@@ -131,7 +131,7 @@ void Simulation::Step()
 
 	///////////////////////////////////////////////////////////////////////////
 	// update delta time for the next frame
-	//UpdateDeltaTime();
+	UpdateDeltaTime();
 }
 
 void Simulation::Draw()
@@ -674,11 +674,10 @@ void Simulation::UpdateDeltaTime()
 		for (int x = 0; x < nx - 1; ++x)
 		{
 			int idx = y * nx + x;
-			max_speed = Max(u[IndexU(x, y)], max_speed);
-			max_speed = Max(v[IndexV(x, y)], max_speed);
+			max_speed = Max(u[IndexU(x, y)] / dx + v[IndexV(x, y)] / dy, max_speed);
 		}
 	}
-	dt = dx / max_speed;
+	dt = 0.2f / max_speed;
 	dt = Min(dt_n * kTwoF, dt); // make sure the dt doesn't grow too much
 	dt_qf = mm_set(dt);
 }
