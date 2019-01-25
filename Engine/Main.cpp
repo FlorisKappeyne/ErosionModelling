@@ -26,13 +26,13 @@ int WINAPI wWinMain( HINSTANCE hInst,HINSTANCE,LPWSTR pArgs,INT )
 {
 
 	Params params;
-	params.file_name_input = "";
+	params.file_name_input = "test.png";
 	params.file_name_output = "output.buf";
-	params.viscosity = 0.0089f;
+	params.viscosity = 0.089f;
 	params.density = 997.0f;
 	params.steps_per_second = 3000.0f;
-	params.init_time = 5.0f;
-	params.erosion_step_time = 1.0f;
+	params.init_time = 1.0f;
+	params.erosion_step_time = 0.3f;
 	params.force_u = 0.0f;
 	params.force_v = 0.0f;
 	params.field_size = 16.0f;

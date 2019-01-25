@@ -676,6 +676,22 @@ void Simulation::ErodeGeometry(Vec2I pos)
 	int32 min_y = Max(pos.y - erosion_radius, 0);
 	int32 max_y = Min(pos.y + erosion_radius + 1, ny);
 
+	int n_eroded = 0;
+
+	for (int32 y = min_y; y < max_y; ++y)
+	{
+		for (int32 x = min_x; x < max_x; ++x)
+		{
+			Vec2I diff = pos - Vec2I(x, y);
+			if (is_solid[IndexP(x,y)])
+			{
+				n_eroded++;
+			}
+		}
+	}
+
+	Sedimentate(n_eroded);
+
 	for (int32 y = min_y; y < max_y; ++y)
 	{
 		for (int32 x = min_x; x < max_x; ++x)
@@ -687,5 +703,31 @@ void Simulation::ErodeGeometry(Vec2I pos)
 				p[IndexP(x, y)] = p[IndexP(pos.x, pos.y)];
 			}
 		}
+	}
+}
+
+void Simulation::Sedimentate(int n_cells)
+{
+	for (int i = 0; i < n_cells; ++i)
+	{
+		Float min_mag = INFINITY;
+		int posx = 0;
+		int posy = 0;
+
+		for (int x = 1; x < nx - 1; ++x)
+		{
+			for (int y = 1; y < ny - 1; ++y)
+			{
+				if (!is_solid[IndexP(x, y)] && Vec2(v[IndexV(x, y)], u[IndexU(x, y)]).Magnitude() < min_mag)
+				{
+					min_mag = Vec2(v[IndexV(x, y)], u[IndexU(x, y)]).Magnitude();
+					posx = x;
+					posy = y;
+				}
+			}
+		}
+
+		is_solid[IndexP(posx, posy)] = true;
+		p[IndexP(posx, posy)] = kZeroF;
 	}
 }
