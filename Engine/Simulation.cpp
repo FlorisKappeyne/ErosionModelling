@@ -433,10 +433,34 @@ void Simulation::ResetEdges()
 			*(QF*)&v[IndexV(x, ny - 2)] = kZeroQF;
 		}
 
+		int y0 = -1;
+
 		for (int y = 1; y < ny - 1; ++y)
 		{
+			if (is_solid[IndexP(1, y)] && y0 != -1)
+			{
+				// < y for staggered
+				for (int y1 = y0; y1 < y; y1++)
+				{
+					int a = y - y0;
+					Float two_r = 2 * y1 - 2 * y0 - a + 1;
+					Float s = (1 - two_r * two_r / (a * a));
+
+					u[IndexU(0, y1)] = inlet_velocity * s;
+				}
+
+				y0 = -1;
+			}
+			else if (is_solid[IndexP(1, y)])
+			{
+				u[IndexU(0, y)] = kZeroF;
+			}
+			else if (y0 == -1)
+			{
+				y0 = y;
+			}
+			
 			p[IndexP(0, y)] = p[IndexP(1, y)];
-			u[IndexU(0, y)] = inlet_velocity;
 			v[IndexV(0, y)] = kZeroF;
 
 			p[IndexP(nx - 1, y)] = outlet_pressure;
@@ -680,7 +704,7 @@ void Simulation::UpdateDeltaTime()
 			max_speed = Max(u[IndexU(x, y)] / dx + v[IndexV(x, y)] / dy, max_speed);
 		}
 	}
-	dt = 0.3f / max_speed;
+	dt = 0.2f / max_speed;
 	dt = Min(dt_n * kTwoF, dt); // make sure the dt doesn't grow too much
 	dt_qf = mm_set(dt);
 
