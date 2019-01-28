@@ -34,7 +34,7 @@ int WINAPI wWinMain( HINSTANCE hInst,HINSTANCE,LPWSTR pArgs,INT )
 		try
 		{
 			Game theGame( wnd, params, n_params);
-			while( wnd.ProcessMessage() )
+			while( wnd.ProcessMessage() && theGame.sim_done == false)
 			{
 				theGame.Go();
 			}
@@ -78,6 +78,9 @@ int WINAPI wWinMain( HINSTANCE hInst,HINSTANCE,LPWSTR pArgs,INT )
 		MessageBox( nullptr,L"\n\nException caught at main window creation.",
 			L"Unhandled Non-STL Exception",MB_ICONERROR );
 	}
+
+	// be a good little programmer and free your own memory
+	delete[] params;
 
 	return 0;
 }

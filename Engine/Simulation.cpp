@@ -696,6 +696,12 @@ void Simulation::UpdateDeltaTime()
 	dt = 0.3f / max_speed;
 	dt = Min(dt_n * kTwoF, dt); // make sure the dt doesn't grow too much
 	dt_qf = mm_set(dt);
+
+	// handle the case where there's been an error and stuff sucks
+	if (dt < kEpsilon)
+	{
+		time_passed = 1e300;
+	}
 }
 
 void Simulation::CalculateShearStress()
