@@ -42,7 +42,7 @@ int WINAPI wWinMain( HINSTANCE hInst,HINSTANCE,LPWSTR pArgs,INT )
 	params.lid_speed = 1.0f;
 	params.inlet_velocity = 1.0f;
 	params.outlet_pressure = 0.0f;
-	params.erosion_radius = 4;
+	params.erosion_percentile = 0.10f;
 	params.niter_jacobi = 160;
 
 	try

@@ -26,7 +26,7 @@ private:
 	void UpdateErosionProcess();
 	void UpdateDeltaTime();
 	void CalculateShearStress();
-	void ErodeGeometry(Vec2I pos);
+	void ErodeGeometry(int n_cells);
 	void Sedimentate(int n_cells);
 
 private:
@@ -36,6 +36,7 @@ private:
 	Float* v, *vn;
 	Float* s;
 	bool* is_solid;
+	bool erosionmode;
 
 	// I/O
 	std::string file_name_input;
@@ -62,7 +63,7 @@ private:
 	const Float lid_speed;
 	const Float inlet_velocity;
 	const Float outlet_pressure;
-	int erosion_radius;
+	Float erosion_percentile;
 	int niter_jacobi;
 	bool do_cavity_flow;
 

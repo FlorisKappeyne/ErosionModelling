@@ -41,7 +41,8 @@ Simulation::Simulation(Graphics& gfx, Params& params)
 	lid_speed(params.lid_speed),
 	inlet_velocity(params.inlet_velocity),
 	outlet_pressure(params.outlet_pressure),
-	erosion_radius(params.erosion_radius),
+	erosion_percentile(params.erosion_percentile),
+	erosionmode(true),
 	niter_jacobi(params.niter_jacobi),
 
 	// quadfloat precalculations
@@ -300,7 +301,14 @@ void Simulation::Draw()
 	OutputDebugStringA(("Min vel = " + std::to_string(min_mag) + ", max vel = " + std::to_string(max_mag) + "\n").c_str());
 	OutputDebugStringA(("Min stress = " + std::to_string(min_stress) + ", max stress = " + std::to_string(max_stress) + "\n").c_str());
 	OutputDebugStringA(("time passed = " + std::to_string(time_passed) + ", dt = " + std::to_string(dt) + "\n").c_str());
-	OutputDebugStringA(("Time until erosion = " + std::to_string(time_until_erosion)).c_str());
+	if (erosionmode) 
+	{
+		OutputDebugStringA(("Time until erosion = " + std::to_string(time_until_erosion)).c_str());
+	}
+	else
+	{
+		OutputDebugStringA(("Time until sedimentation = " + std::to_string(time_until_erosion)).c_str());
+	}
 	OutputDebugStringA("\n");
 }
 
@@ -644,23 +652,31 @@ void Simulation::UpdateErosionProcess()
 		ResetBoundaryConditions();
 		CalculateShearStress();
 
-		// calculate position of max stress
-		Float max_stress = kZeroF;
-		Vec2I max_stress_pos = Vec2I(0, 0);
-		for (int y = 1; y < ny - 1; ++y)
+		int count = 0;
+
+		for (int x = 1; x < nx - 1; ++x)
 		{
-			for (int x = 1; x < nx - 1; ++x)
+			for (int y = 1; y < ny - 1; ++y)
 			{
-				if (s[IndexP(x, y)] > max_stress)
+				if (s[IndexP(x, y)] > 0)
 				{
-					max_stress = s[IndexP(x, y)];
-					max_stress_pos.x = x;
-					max_stress_pos.y = y;
+					count++;
 				}
 			}
 		}
 
-		ErodeGeometry(max_stress_pos);
+		int n_cells = (int)(erosion_percentile * count);
+
+		if (erosionmode) 
+		{
+			ErodeGeometry(n_cells);
+			erosionmode = !erosionmode;
+		}
+		else
+		{
+			Sedimentate(n_cells);
+			erosionmode = !erosionmode;
+		}
 		time_until_erosion = convergence_sim_seconds;
 	}
 }
@@ -677,71 +693,73 @@ void Simulation::UpdateDeltaTime()
 			max_speed = Max(u[IndexU(x, y)] / dx + v[IndexV(x, y)] / dy, max_speed);
 		}
 	}
-	dt = 0.2f / max_speed;
+	dt = 0.3f / max_speed;
 	dt = Min(dt_n * kTwoF, dt); // make sure the dt doesn't grow too much
 	dt_qf = mm_set(dt);
 }
 
 void Simulation::CalculateShearStress()
 {
-	Vec2 gradient = Vec2(kZeroF, kZeroF);
-
 	for (int y = 1; y < ny - 1; ++y)
 	{
 		for (int x = 1; x < nx - 1; ++x)
 		{
-			gradient.x = kZeroF;
-			gradient.y = kZeroF;
-
-			if (is_solid[IndexP(x, y - 1)] || is_solid[IndexP(x, y + 1)])
+			if (!is_solid[IndexP(x, y)])
 			{
-				gradient.x = u[IndexU(x, y)] - u[IndexU(x, y - 1)];
+				continue;
 			}
 
-			if (is_solid[IndexP(x - 1, y)] || is_solid[IndexP(x + 1, y)])
+			Float stress = kZeroF;
+
+			if (!is_solid[IndexP(x - 1, y)])
 			{
-				gradient.y = v[IndexV(x, y)] - v[IndexV(x, y - 1)];
+				stress = Abs(std::max(stress, v[IndexV(x - 1, y)] - v[IndexV(x - 1, y - 1)]));
+			}
+			
+			if (!is_solid[IndexP(x + 1, y)])
+			{
+				stress = Abs(std::max(stress, v[IndexV(x + 1, y)] - v[IndexV(x + 1, y - 1)]));
 			}
 
-			s[IndexP(x, y)] = gradient.Magnitude();
+			if (!is_solid[IndexP(x, y - 1)])
+			{
+				stress = Abs(std::max(stress, u[IndexU(x, y - 1)] - u[IndexU(x - 1, y - 1)]));
+			}
+			
+			if (!is_solid[IndexP(x, y + 1)])
+			{
+				stress = Abs(std::max(stress, u[IndexU(x, y + 1)] - u[IndexU(x - 1, y + 1)]));
+			}
+
+			s[IndexP(x, y)] = stress;
 		}
 	}
 }
 
-void Simulation::ErodeGeometry(Vec2I pos)
+void Simulation::ErodeGeometry(int n_cells)
 {
-	int32 min_x = Max(pos.x - erosion_radius, 0);
-	int32 max_x = Min(pos.x + erosion_radius + 1, nx);
-	int32 min_y = Max(pos.y - erosion_radius, 0);
-	int32 max_y = Min(pos.y + erosion_radius + 1, ny);
-
-	int n_eroded = 0;
-
-	for (int32 y = min_y; y < max_y; ++y)
+	for (int i = 0; i < n_cells; ++i)
 	{
-		for (int32 x = min_x; x < max_x; ++x)
+		Float max_stress = 0;
+		int posx = 0;
+		int posy = 0;
+
+		for (int x = 1; x < nx - 1; ++x)
 		{
-			Vec2I diff = pos - Vec2I(x, y);
-			if (is_solid[IndexP(x,y)])
+			for (int y = 1; y < ny - 1; ++y)
 			{
-				n_eroded++;
+				if (s[IndexP(x, y)] > max_stress)
+				{
+					max_stress = s[IndexP(x, y)];
+					posx = x;
+					posy = y;
+				}
 			}
 		}
-	}
 
-	Sedimentate(n_eroded);
-
-	for (int32 y = min_y; y < max_y; ++y)
-	{
-		for (int32 x = min_x; x < max_x; ++x)
-		{
-			Vec2I diff = pos - Vec2I(x, y);
-			if (diff.Magnitude() <= erosion_radius)
-			{
-				is_solid[IndexP(x, y)] = false;
-				p[IndexP(x, y)] = p[IndexP(pos.x, pos.y)];
-			}
-		}
+		is_solid[IndexP(posx, posy)] = false;
+		s[IndexP(posx, posy)] = kZeroF;
+		p[IndexP(posx, posy)] = kZeroF;
 	}
 }
 
@@ -759,7 +777,7 @@ void Simulation::Sedimentate(int n_cells)
 			{
 				if (!is_solid[IndexP(x, y)] && Vec2(v[IndexV(x, y)], u[IndexU(x, y)]).Magnitude() < min_mag)
 				{
-					min_mag = Vec2(v[IndexV(x, y)], u[IndexU(x, y)]).Magnitude();
+					min_mag = Vec2((v[IndexV(x, y)] + v[IndexV(x, y - 1)]) / 2, (u[IndexU(x, y)] + u[IndexU(x - 1, y)]) / 2).Magnitude();
 					posx = x;
 					posy = y;
 				}

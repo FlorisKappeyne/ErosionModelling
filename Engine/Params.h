@@ -28,7 +28,7 @@ public:
 	Float lid_speed;
 	Float inlet_velocity;
 	Float outlet_pressure;
-	int erosion_radius;
+	Float erosion_percentile;
 	int niter_jacobi;
 };
 
