@@ -19,6 +19,7 @@ Params * LoadParams(const std::string & file_name, int& n_params)
 {
 	std::string line;
 	std::ifstream readFile("params.txt");
+	int permutations = 1;
 
 	std::vector<std::string> file_name_input;
 	std::vector<std::string> file_name_output;
@@ -43,7 +44,7 @@ Params * LoadParams(const std::string & file_name, int& n_params)
 	{
 		if (line == "file_name_input")
 		{
-
+			//GetAll(std::getline(readFile, line), file_name_input);
 		}
 		else if (line == "file_name_output")
 		{
