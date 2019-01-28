@@ -71,5 +71,8 @@ void Game::UpdateModel()
 
 void Game::ComposeFrame()
 {
+	if (sim_done == true)
+		return;
+
 	sim->Draw();
 }
