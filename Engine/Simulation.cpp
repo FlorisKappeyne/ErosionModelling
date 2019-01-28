@@ -132,7 +132,7 @@ void Simulation::Step()
 
 	///////////////////////////////////////////////////////////////////////////
 	// update delta time for the next frame
-	UpdateDeltaTime();
+	//UpdateDeltaTime();
 }
 
 void Simulation::Draw()

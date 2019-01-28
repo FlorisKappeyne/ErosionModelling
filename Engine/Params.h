@@ -32,11 +32,4 @@ public:
 	int niter_jacobi;
 };
 
-// todo:
-/*
-better output
-param sweep functionality
-output of variables
-some way to read and process the datadump
-analyze numerical precision, try to optimize for it.
-*/
+Params* LoadParams(const std::string& file_name, int& n_params);
