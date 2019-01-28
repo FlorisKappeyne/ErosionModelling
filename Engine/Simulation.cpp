@@ -132,7 +132,7 @@ void Simulation::Step()
 
 	///////////////////////////////////////////////////////////////////////////
 	// update delta time for the next frame
-	//UpdateDeltaTime();
+	UpdateDeltaTime();
 }
 
 void Simulation::Draw()
@@ -775,7 +775,7 @@ void Simulation::Sedimentate(int n_cells)
 		{
 			for (int y = 1; y < ny - 1; ++y)
 			{
-				if (!is_solid[IndexP(x, y)] && Vec2(v[IndexV(x, y)], u[IndexU(x, y)]).Magnitude() < min_mag)
+				if (!is_solid[IndexP(x, y)] && Vec2((v[IndexV(x, y)] + v[IndexV(x, y - 1)]) / 2, (u[IndexU(x, y)] + u[IndexU(x - 1, y)]) / 2).Magnitude() < min_mag)
 				{
 					min_mag = Vec2((v[IndexV(x, y)] + v[IndexV(x, y - 1)]) / 2, (u[IndexU(x, y)] + u[IndexU(x - 1, y)]) / 2).Magnitude();
 					posx = x;

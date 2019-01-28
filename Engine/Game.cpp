@@ -53,6 +53,8 @@ void Game::UpdateModel()
 		if (param_iter == n_params)
 		{
 			sim_done = true;
+			delete sim;
+			return;
 		}
 		delete sim;
 		sim = new Simulation(gfx, params[param_iter]);
