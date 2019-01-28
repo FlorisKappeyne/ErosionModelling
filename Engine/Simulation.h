@@ -13,6 +13,11 @@ public:
 	void Step();
 	void Draw();
 
+	Float GetTimePassed()
+	{
+		return time_passed;
+	}
+
 private:
 	// field control
 	void InitField(const std::string& file_name);

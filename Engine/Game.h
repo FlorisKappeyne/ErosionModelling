@@ -29,10 +29,12 @@
 class Game
 {
 public:
-	Game( class MainWindow& wnd, Params& params);
+	Game( class MainWindow& wnd, Params* params, int n_params);
 	Game( const Game& ) = delete;
 	Game& operator=( const Game& ) = delete;
 	void Go();
+
+	bool sim_done;
 private:
 	void ComposeFrame();
 	void UpdateModel();
@@ -40,9 +42,12 @@ private:
 private:
 	MainWindow& wnd;
 	Graphics gfx;
+	Params* params;
+
+	int n_params;
+	int param_iter;
 
 	Float steps_per_second;
-	Float time_multiplier;
 	int steps_per_frame;
-	Simulation sim;
+	Simulation* sim;
 };
