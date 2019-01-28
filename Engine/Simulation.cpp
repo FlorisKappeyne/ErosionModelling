@@ -43,6 +43,7 @@ Simulation::Simulation(Graphics& gfx, Params& params)
 	outlet_pressure(params.outlet_pressure),
 	erosion_percentile(params.erosion_percentile),
 	erosionmode(true),
+	n_eroded(0),
 	niter_jacobi(params.niter_jacobi),
 
 	// quadfloat precalculations
@@ -652,31 +653,17 @@ void Simulation::UpdateErosionProcess()
 		ResetBoundaryConditions();
 		CalculateShearStress();
 
-		int count = 0;
-
-		for (int x = 1; x < nx - 1; ++x)
-		{
-			for (int y = 1; y < ny - 1; ++y)
-			{
-				if (s[IndexP(x, y)] > 0)
-				{
-					count++;
-				}
-			}
-		}
-
-		int n_cells = (int)(erosion_percentile * count);
-
 		if (erosionmode) 
 		{
-			ErodeGeometry(n_cells);
+			ErodeGeometry();
 			erosionmode = !erosionmode;
 		}
 		else
 		{
-			Sedimentate(n_cells);
+			Sedimentate();
 			erosionmode = !erosionmode;
 		}
+
 		time_until_erosion = convergence_sim_seconds;
 	}
 }
@@ -736,8 +723,24 @@ void Simulation::CalculateShearStress()
 	}
 }
 
-void Simulation::ErodeGeometry(int n_cells)
+void Simulation::ErodeGeometry()
 {
+	int count = 0;
+
+	for (int x = 1; x < nx - 1; ++x)
+	{
+		for (int y = 1; y < ny - 1; ++y)
+		{
+			if (s[IndexP(x, y)] > 0)
+			{
+				count++;
+			}
+		}
+	}
+
+	int n_cells = (int)(erosion_percentile * count);
+	n_eroded = n_cells;
+
 	for (int i = 0; i < n_cells; ++i)
 	{
 		Float max_stress = 0;
@@ -763,9 +766,9 @@ void Simulation::ErodeGeometry(int n_cells)
 	}
 }
 
-void Simulation::Sedimentate(int n_cells)
+void Simulation::Sedimentate()
 {
-	for (int i = 0; i < n_cells; ++i)
+	for (int i = 0; i < n_eroded; ++i)
 	{
 		Float min_mag = INFINITY;
 		int posx = 0;

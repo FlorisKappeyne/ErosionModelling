@@ -31,8 +31,8 @@ private:
 	void UpdateErosionProcess();
 	void UpdateDeltaTime();
 	void CalculateShearStress();
-	void ErodeGeometry(int n_cells);
-	void Sedimentate(int n_cells);
+	void ErodeGeometry();
+	void Sedimentate();
 
 private:
 	// buffers
@@ -41,7 +41,10 @@ private:
 	Float* v, *vn;
 	Float* s;
 	bool* is_solid;
+
+	// erosion variables
 	bool erosionmode;
+	int n_eroded;
 
 	// I/O
 	std::string file_name_input;
