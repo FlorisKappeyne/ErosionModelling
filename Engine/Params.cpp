@@ -134,7 +134,7 @@ Params * LoadParams(const std::string & file_name, int& n_params)
 	res->lid_speed = 1.0f;
 	res->inlet_velocity = 1.0f;
 	res->outlet_pressure = 0.0f;
-	res->erosion_radius = 4;
+	res->erosion_percentile = 0.05f;
 	res->niter_jacobi = 160;
 
 	n_params = 1;
