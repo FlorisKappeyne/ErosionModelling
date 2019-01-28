@@ -99,6 +99,9 @@
     <ClInclude Include="Params.h">
       <Filter>Header Files\Simulation</Filter>
     </ClInclude>
+    <ClInclude Include="Results.h">
+      <Filter>Header Files\Simulation</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Game.cpp">
@@ -135,6 +138,9 @@
       <Filter>Source Files\Simulation</Filter>
     </ClCompile>
     <ClCompile Include="Params.cpp">
+      <Filter>Source Files\Simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="Results.cpp">
       <Filter>Source Files\Simulation</Filter>
     </ClCompile>
   </ItemGroup>

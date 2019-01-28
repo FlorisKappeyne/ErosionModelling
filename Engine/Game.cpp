@@ -31,9 +31,11 @@ Game::Game(MainWindow& wnd, Params* parameters, int params_count)
 	params(parameters),
 	n_params(params_count),
 	param_iter(0),
-	sim(new Simulation(gfx, params[0])),
 	steps_per_second(params[0].steps_per_second),
-	steps_per_frame((int)Max(steps_per_second / (Float)60.0f, kOneF))
+	steps_per_frame((int)Max(steps_per_second / (Float)60.0f, kOneF)),
+	next_snapshot_time(kZeroF),
+	sim(new Simulation(gfx, params[0])),
+	results(new Results(parameters[0]))
 {
 }
 
@@ -47,26 +49,42 @@ void Game::Go()
 
 void Game::UpdateModel()
 {
-	if (sim->GetTimePassed() > 300.0f)
-	{
-		param_iter++;
-		if (param_iter == n_params)
-		{
-			sim_done = true;
-			delete sim;
-			return;
-		}
-		delete sim;
-		sim = new Simulation(gfx, params[param_iter]);
-		steps_per_second = params[param_iter].steps_per_second;
-		steps_per_frame = (int)Max(steps_per_second / (Float)60.0f, kOneF);
-	}
-
 	for (int i = 0; i < steps_per_frame; ++i)
 	{
 		sim->Step();
+
+		if (sim->GetTimePassed() > 300.0f)
+		{
+			// dump results of this simulation
+			sim->CreateSnapshot(*results);
+			results->OuputToFile(params[param_iter].file_name_output + std::to_string(param_iter) + ".buf");
+
+			// reset for next run
+			next_snapshot_time = kZeroF;
+			param_iter++;
+			delete sim;
+			delete results;
+
+			// if no next run, tell main.cpp
+			if (param_iter == n_params)
+			{
+				sim_done = true;
+				return;
+			}
+
+			// set up next run;
+			sim = new Simulation(gfx, params[param_iter]);
+			results = new Results(params[param_iter]);
+			steps_per_second = params[param_iter].steps_per_second;
+			steps_per_frame = (int)Max(steps_per_second / (Float)60.0f, kOneF);
+		}
+		else if (sim->GetTimePassed() > next_snapshot_time)
+		{
+			// make a snapshot
+			next_snapshot_time += time_between_snapshots;
+			sim->CreateSnapshot(*results);
+		}
 	}
-	//sim.Step();
 }
 
 void Game::ComposeFrame()

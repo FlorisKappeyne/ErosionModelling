@@ -154,6 +154,7 @@
     <ClInclude Include="Mouse.h" />
     <ClInclude Include="Params.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="Results.h" />
     <ClInclude Include="Simulation.h" />
     <ClInclude Include="Sound.h" />
     <ClInclude Include="SoundEffect.h" />
@@ -173,6 +174,7 @@
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="Mouse.cpp" />
     <ClCompile Include="Params.cpp" />
+    <ClCompile Include="Results.cpp" />
     <ClCompile Include="Simulation.cpp" />
     <ClCompile Include="Sound.cpp" />
   </ItemGroup>

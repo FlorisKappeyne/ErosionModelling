@@ -1,7 +1,7 @@
 #pragma once
 #include "Cell.h"
 #include "Graphics.h"
-#include "Params.h"
+#include "Results.h"
 #include <string>
 
 class Simulation
@@ -12,6 +12,7 @@ public:
 
 	void Step();
 	void Draw();
+	void CreateSnapshot(Results& res);
 
 	Float GetTimePassed()
 	{
@@ -33,6 +34,7 @@ private:
 	void CalculateShearStress();
 	void ErodeGeometry(int n_cells);
 	void Sedimentate(int n_cells);
+	void HandleDegenerateCases();
 
 private:
 	// buffers

@@ -106,6 +106,7 @@ Simulation::~Simulation()
 
 void Simulation::Step()
 {
+	//////////////////////////////////////////////////////////////////////////////
 	// reset boundary conditions
 	ResetBoundaryConditions();
 
@@ -130,9 +131,13 @@ void Simulation::Step()
 	// update erosion process
 	UpdateErosionProcess();
 
-	///////////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////
 	// update delta time for the next frame
 	UpdateDeltaTime();
+
+	//////////////////////////////////////////////////////////////////////////////
+	// make sure the simulation is still valid
+	HandleDegenerateCases();
 }
 
 void Simulation::Draw()
@@ -310,6 +315,11 @@ void Simulation::Draw()
 		OutputDebugStringA(("Time until sedimentation = " + std::to_string(time_until_erosion)).c_str());
 	}
 	OutputDebugStringA("\n");
+}
+
+void Simulation::CreateSnapshot(Results & res)
+{
+	res.AddSnapshot(u, v, p, s, is_solid, time_passed);
 }
 
 
@@ -697,11 +707,6 @@ void Simulation::UpdateDeltaTime()
 	dt = Min(dt_n * kTwoF, dt); // make sure the dt doesn't grow too much
 	dt_qf = mm_set(dt);
 
-	// handle the case where there's been an error and stuff sucks
-	if (dt < kEpsilon)
-	{
-		time_passed = 1e300;
-	}
 }
 
 void Simulation::CalculateShearStress()
@@ -792,5 +797,27 @@ void Simulation::Sedimentate(int n_cells)
 
 		is_solid[IndexP(posx, posy)] = true;
 		p[IndexP(posx, posy)] = kZeroF;
+	}
+}
+
+void Simulation::HandleDegenerateCases()
+{
+	// handle the case where the values explode
+	if (dt < Float(1e-8))
+	{
+		time_passed = 1e300;
+		return;
+	}
+
+	// handle the case where the simulation can't find the exit point anymore
+	int exit_pixels = 0;
+	for (int y = 1; y < ny - 1; ++y)
+	{
+		exit_pixels += (int)((int)is_solid[IndexP(nx - 2, y)] == 0);
+	}
+	if (exit_pixels == 0)
+	{
+		time_passed = 1e300;
+		return;
 	}
 }

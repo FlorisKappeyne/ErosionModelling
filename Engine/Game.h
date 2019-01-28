@@ -24,7 +24,7 @@
 #include "Mouse.h"
 #include "Graphics.h"
 #include "Simulation.h"
-#include "Params.h"
+#include "Results.h"
 
 class Game
 {
@@ -49,5 +49,9 @@ private:
 
 	Float steps_per_second;
 	int steps_per_frame;
+
+	Float next_snapshot_time;
+	static constexpr Float time_between_snapshots = Float(5.0f);
 	Simulation* sim;
+	Results* results;
 };
