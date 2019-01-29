@@ -689,10 +689,9 @@ void Simulation::UpdateDeltaTime()
 			max_speed = Max(u[IndexU(x, y)] / dx + v[IndexV(x, y)] / dy, max_speed);
 		}
 	}
-	dt = 0.2f / max_speed;
+	dt = 0.05f / max_speed;
 	dt = Min(dt_n * kTwoF, dt); // make sure the dt doesn't grow too much
 	dt_qf = mm_set(dt);
-
 }
 
 void Simulation::CalculateShearStress()
@@ -710,22 +709,22 @@ void Simulation::CalculateShearStress()
 
 			if (state[IndexP(x - 1, y)] == kFluid)
 			{
-				stress = Abs(std::max(stress, v[IndexV(x - 1, y)] - v[IndexV(x - 1, y - 1)]));
+				stress = std::max(stress, Abs(v[IndexV(x - 1, y)] - v[IndexV(x - 1, y - 1)]));
 			}
 			
 			if (state[IndexP(x + 1, y)] == kFluid)
 			{
-				stress = Abs(std::max(stress, v[IndexV(x + 1, y)] - v[IndexV(x + 1, y - 1)]));
+				stress = std::max(stress, Abs(v[IndexV(x + 1, y)] - v[IndexV(x + 1, y - 1)]));
 			}
 
 			if (state[IndexP(x, y - 1)] == kFluid)
 			{
-				stress = Abs(std::max(stress, u[IndexU(x, y - 1)] - u[IndexU(x - 1, y - 1)]));
+				stress = std::max(stress, Abs(u[IndexU(x, y - 1)] - u[IndexU(x - 1, y - 1)]));
 			}
 			
 			if (state[IndexP(x, y + 1)] == kFluid)
 			{
-				stress = Abs(std::max(stress, u[IndexU(x, y + 1)] - u[IndexU(x - 1, y + 1)]));
+				stress = std::max(stress, Abs(u[IndexU(x, y + 1)] - u[IndexU(x - 1, y + 1)]));
 			}
 
 			s[IndexP(x, y)] = stress;
