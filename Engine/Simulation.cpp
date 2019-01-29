@@ -45,6 +45,8 @@ Simulation::Simulation(Graphics& gfx, Params& params)
 	erosionmode(true),
 	n_eroded(0),
 	niter_jacobi(params.niter_jacobi),
+	kSolid(-1),
+	kFluid(0),
 
 	// quadfloat precalculations
 	viscosity_qf(mm_set(viscosity)),
@@ -57,8 +59,8 @@ Simulation::Simulation(Graphics& gfx, Params& params)
 	dy2_qf(mm_set(dy * dy)),
 	dt_qf(mm_set(dt)),
 
-	ones(mm_set(Int(-1))),
-	zeros(mm_set(Int(0))),
+	kSolidQF(mm_set(kSolid)),
+	kFluidQF(mm_set(kFluid)),
 	kTwoQF(mm_set(kTwoF)),
 	kOneQF(mm_set(kOneF)),
 	kZeroQF(mm_set(kZeroF)),
@@ -78,7 +80,7 @@ Simulation::Simulation(Graphics& gfx, Params& params)
 	v = (Float*)_aligned_malloc((ny - 1) * nx * sizeof(Float), 64);
 	vn = (Float*)_aligned_malloc((ny - 1) * nx * sizeof(Float), 64);
 	s = (Float*)_aligned_malloc(nc * sizeof(Float), 64);
-	is_solid = (bool*)_aligned_malloc(nc * sizeof(bool), 64);
+	state = (Int*)_aligned_malloc(nc * sizeof(Int), 64);
 
 	memset(p, 0, nc * sizeof(Float));
 	memset(pn, 0, nc * sizeof(Float));
@@ -86,7 +88,7 @@ Simulation::Simulation(Graphics& gfx, Params& params)
 	memset(un, 0, (nx - 1) * ny * sizeof(Float));
 	memset(v, 0, (ny - 1) * nx * sizeof(Float));
 	memset(vn, 0, (ny - 1) * nx * sizeof(Float));
-	memset(is_solid, 0, nc * sizeof(bool));
+	memset(state, 0, nc * sizeof(Int));
 	memset(s, 0, nc * sizeof(Float));
 
 	// initialize the field
@@ -101,7 +103,7 @@ Simulation::~Simulation()
 	_aligned_free(un);
 	_aligned_free(v);
 	_aligned_free(vn);
-	_aligned_free(is_solid);
+	_aligned_free(state);
 	_aligned_free(s);
 }
 
@@ -174,7 +176,7 @@ void Simulation::Draw()
 		for (int x = 1; x < nx - 1; ++x)
 		{
 			int idx = y * nx + x;
-			if (is_solid[idx])
+			if (state[idx])
 			{
 				gfx.PutPixel(x, ny - y - 1, Colors::Green * 0.3f);
 				continue;
@@ -216,7 +218,7 @@ void Simulation::Draw()
 		for (int x = 1; x < nx - 1; ++x)
 		{
 			int idx = y * nx + x;
-			if (is_solid[idx])
+			if (state[idx] == -1)
 			{
 				gfx.PutPixel(x, ny * 2 - y - 1, Colors::Blue * 0.3f);
 				continue;
@@ -290,7 +292,7 @@ void Simulation::Draw()
 		for (int x = 0; x < nx; ++x)
 		{
 			const int idx = IndexP(x, y);
-			if (is_solid[idx])
+			if (state[idx])
 			{
 				gfx.PutPixel(x + nx, ny - y - 1, Colors::Gray * 0.8f);
 				continue;
@@ -320,7 +322,7 @@ void Simulation::Draw()
 
 void Simulation::CreateSnapshot(Results & res)
 {
-	res.AddSnapshot(u, v, p, s, is_solid, time_passed);
+	res.AddSnapshot(u, v, p, s, state, time_passed);
 }
 
 
@@ -357,7 +359,7 @@ void Simulation::InitField(const std::string& file_name)
 					// r-g-b-a
 					if (color == 0xffffffff)
 					{
-						is_solid[idx] = true;
+						state[idx] = kSolid;
 						u[idx] = kZeroF;
 						v[idx] = kZeroF;
 					}
@@ -385,20 +387,15 @@ void Simulation::ResetBoundaryConditions()
 			const int idx_u = IndexU(x, y);
 			const int idx_v = IndexV(x, y);
 
-			if (*(int*)&is_solid[idx] == 0)
+			if (*(int*)&state[idx] == 0)
 				continue;
 
-			QI mask = mm_set(
-				(Int)is_solid[idx + 3],
-				(Int)is_solid[idx + 2],
-				(Int)is_solid[idx + 1],
-				(Int)is_solid[idx]);
-			mask = mm_sub(zeros, mask);
+			const QI mask = *(QI*)&state[idx];
 
-			*(QF*)&u[idx_u - 1] = mm_blend(*(QF*)&u[idx_u - 1], *(QF*)&zeros, *(QF*)&mask);
-			*(QF*)&u[idx_u] = mm_blend(*(QF*)&u[idx_u], *(QF*)&zeros, *(QF*)&mask);
-			*(QF*)&v[idx_v - nx] = mm_blend(*(QF*)&v[idx - nx], *(QF*)&zeros, *(QF*)&mask);
-			*(QF*)&v[idx_v] = mm_blend(*(QF*)&v[idx], *(QF*)&zeros, *(QF*)&mask);
+			*(QF*)&u[idx_u - 1] = mm_blend(*(QF*)&u[idx_u - 1], kZeroQF, *(QF*)&mask);
+			*(QF*)&u[idx_u] = mm_blend(*(QF*)&u[idx_u], kZeroQF, *(QF*)&mask);
+			*(QF*)&v[idx_v - nx] = mm_blend(*(QF*)&v[idx - nx], kZeroQF, *(QF*)&mask);
+			*(QF*)&v[idx_v] = mm_blend(*(QF*)&v[idx], kZeroQF, *(QF*)&mask);
 		}
 	}
 }
@@ -447,7 +444,7 @@ void Simulation::ResetEdges()
 
 		for (int y = 1; y < ny - 1; ++y)
 		{
-			if (is_solid[IndexP(1, y)] && y0 != -1)
+			if (state[IndexP(1, y)] && y0 != -1)
 			{
 				// < y for staggered
 				for (int y1 = y0; y1 < y; y1++)
@@ -461,7 +458,7 @@ void Simulation::ResetEdges()
 
 				y0 = -1;
 			}
-			else if (is_solid[IndexP(1, y)])
+			else if (state[IndexP(1, y)])
 			{
 				u[IndexU(0, y)] = kZeroF;
 			}
@@ -493,11 +490,15 @@ void Simulation::UpdateVelocities()
 		for (int x = 1; x < nx - 1; x += 4)
 		{
 			const int idx = IndexP(x, y);
+
+			// if all states are solid, the eq mask will be 0xfffffff...fff, which is -1 in an int
+			QI eq = mm_cmpeq(*(QI*)&state[idx], kSolidQF);
+			if ((((Int*)&eq)[0] + ((Int*)&eq)[1] + ((Int*)&eq)[2] + ((Int*)&eq)[3]) == -4)
+				continue;
+			//if (*(int32*)&state[idx] == 0x01010101)
+			//	continue;
 			const int idx_u = IndexU(x, y);
 			const int idx_v = IndexV(x, y);
-
-			if (*(int32*)&is_solid[idx] == 0x01010101)
-				continue;
 
 			const QF u_center = *(QF*)&un[idx_u];
 			const QF u_left = *(QF*)&un[idx_u - 1];
@@ -566,11 +567,15 @@ void Simulation::SolveForPressure()
 			for (int x = 1; x < nx - 1; x += 4)
 			{
 				const int idx = IndexP(x, y);
+
+				// if all states are solid, the eq mask will be 0xfffffff...fff, which is -1 in an int
+				QI eq = mm_cmpeq(*(QI*)&state[idx], kSolidQF);
+				if ((((Int*)&eq)[0] + ((Int*)&eq)[1] + ((Int*)&eq)[2] + ((Int*)&eq)[3]) == -4)
+					continue;
+				//if (*(int32*)&state[idx] == 0x01010101)
+				//	continue;
 				const int idx_u = IndexU(x, y);
 				const int idx_v = IndexV(x, y);
-
-				if (*(int*)&is_solid[idx] == 0x01010101)
-					continue;
 
 				QF p_center = *(QF*)&pn[idx];
 				QF p_left = *(QF*)&pn[idx - 1];
@@ -578,33 +583,10 @@ void Simulation::SolveForPressure()
 				QF p_down = *(QF*)&pn[idx - nx];
 				QF p_up = *(QF*)&pn[idx + nx];
 
-				QI mask_left = mm_set(
-					(Int)is_solid[idx - 1 + 3],
-					(Int)is_solid[idx - 1 + 2],
-					(Int)is_solid[idx - 1 + 1],
-					(Int)is_solid[idx - 1]);
-				mask_left = mm_sub(zeros, mask_left);
-
-				QI mask_right = mm_set(
-					(Int)is_solid[idx + 1 + 3],
-					(Int)is_solid[idx + 1 + 2],
-					(Int)is_solid[idx + 1 + 1],
-					(Int)is_solid[idx + 1]);
-				mask_right = mm_sub(zeros, mask_right);
-
-				QI mask_down = mm_set(
-					(Int)is_solid[idx - nx + 3],
-					(Int)is_solid[idx - nx + 2],
-					(Int)is_solid[idx - nx + 1],
-					(Int)is_solid[idx - nx]);
-				mask_down = mm_sub(zeros, mask_down);
-
-				QI mask_up = mm_set(
-					(Int)is_solid[idx + nx + 3],
-					(Int)is_solid[idx + nx + 2],
-					(Int)is_solid[idx + nx + 1],
-					(Int)is_solid[idx + nx]);
-				mask_up = mm_sub(zeros, mask_up);
+				QI mask_left = *(QI*)&state[idx - 1];
+				QI mask_right = *(QI*)&state[idx + 1];
+				QI mask_down = *(QI*)&state[idx - nx];
+				QI mask_up = *(QI*)&state[idx + nx];
 
 				p_left = mm_blend(p_left, p_center, *(QF*)&mask_left);
 				p_right = mm_blend(p_right, p_center, *(QF*)&mask_right);
@@ -639,29 +621,22 @@ void Simulation::SubtractPressureGradient()
 		for (int x = 1; x < nx - 1; x += 4)
 		{
 			const int idx = IndexP(x, y);
+
+			// if all states are solid, the eq mask will be 0xfffffff...fff, which is -1 in an int
+			QI eq = mm_cmpeq(*(QI*)&state[idx], kSolidQF);
+			if ((((Int*)&eq)[0] + ((Int*)&eq)[1] + ((Int*)&eq)[2] + ((Int*)&eq)[3]) == -4)
+				continue;
+			//if (*(int32*)&state[idx] == 0x01010101)
+			//	continue;
 			const int idx_u = IndexU(x, y);
 			const int idx_v = IndexV(x, y);
-
-			if (*(int*)&is_solid[idx] == 0x01010101)
-				continue;
 
 			QF p_center = *(QF*)&pn[idx];
 			QF p_right = *(QF*)&pn[idx + 1];
 			QF p_up = *(QF*)&pn[idx + nx];
 
-			QI mask_right = mm_set(
-				(Int)is_solid[idx + 1 + 3],
-				(Int)is_solid[idx + 1 + 2],
-				(Int)is_solid[idx + 1 + 1],
-				(Int)is_solid[idx + 1]);
-			mask_right = mm_sub(zeros, mask_right);
-
-			QI mask_up = mm_set(
-				(Int)is_solid[idx + nx + 3],
-				(Int)is_solid[idx + nx + 2],
-				(Int)is_solid[idx + nx + 1],
-				(Int)is_solid[idx + nx]);
-			mask_up = mm_sub(zeros, mask_up);
+			QI mask_right = *(QI*)&state[idx + 1];
+			QI mask_up = *(QI*)&state[idx + nx];
 
 			p_right = mm_blend(p_right, p_center, *(QF*)&mask_right);
 			p_up = mm_blend(p_up, p_center, *(QF*)&mask_up);
@@ -726,29 +701,29 @@ void Simulation::CalculateShearStress()
 	{
 		for (int x = 1; x < nx - 1; ++x)
 		{
-			if (!is_solid[IndexP(x, y)])
+			if (state[IndexP(x, y)] == kFluid)
 			{
 				continue;
 			}
 
 			Float stress = kZeroF;
 
-			if (!is_solid[IndexP(x - 1, y)])
+			if (state[IndexP(x - 1, y)] == kFluid)
 			{
 				stress = Abs(std::max(stress, v[IndexV(x - 1, y)] - v[IndexV(x - 1, y - 1)]));
 			}
 			
-			if (!is_solid[IndexP(x + 1, y)])
+			if (state[IndexP(x + 1, y)] == kFluid)
 			{
 				stress = Abs(std::max(stress, v[IndexV(x + 1, y)] - v[IndexV(x + 1, y - 1)]));
 			}
 
-			if (!is_solid[IndexP(x, y - 1)])
+			if (state[IndexP(x, y - 1)] == kFluid)
 			{
 				stress = Abs(std::max(stress, u[IndexU(x, y - 1)] - u[IndexU(x - 1, y - 1)]));
 			}
 			
-			if (!is_solid[IndexP(x, y + 1)])
+			if (state[IndexP(x, y + 1)] == kFluid)
 			{
 				stress = Abs(std::max(stress, u[IndexU(x, y + 1)] - u[IndexU(x - 1, y + 1)]));
 			}
@@ -794,7 +769,7 @@ void Simulation::ErodeGeometry()
 			}
 		}
 
-		is_solid[IndexP(posx, posy)] = false;
+		state[IndexP(posx, posy)] = kFluid;
 		s[IndexP(posx, posy)] = kZeroF;
 		p[IndexP(posx, posy)] = kZeroF;
 	}
@@ -813,7 +788,7 @@ void Simulation::Sedimentate()
 			for (int x = 1; x < nx - 1; ++x)
 			{
 				Float mag = Vec2((u[IndexU(x, y)] + u[IndexU(x - 1, y)]) / 2, (v[IndexV(x, y)] + v[IndexV(x, y - 1)]) / 2).Magnitude();
-				if (!is_solid[IndexP(x, y)] && mag < min_mag)
+				if (!state[IndexP(x, y)] && mag < min_mag)
 				{
 					min_mag = mag;
 					posx = x;
@@ -822,7 +797,7 @@ void Simulation::Sedimentate()
 			}
 		}
 
-		is_solid[IndexP(posx, posy)] = true;
+		state[IndexP(posx, posy)] = kSolid;
 		p[IndexP(posx, posy)] = kZeroF;
 	}
 }
@@ -840,7 +815,7 @@ void Simulation::HandleDegenerateCases()
 	int exit_pixels = 0;
 	for (int y = 1; y < ny - 1; ++y)
 	{
-		exit_pixels += (int)((int)is_solid[IndexP(nx - 2, y)] == 0);
+		exit_pixels += (int)(state[IndexP(nx - 2, y)] == kFluid);
 	}
 	if (exit_pixels == 0)
 	{

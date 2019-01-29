@@ -10,7 +10,7 @@ Results::Results(Params& params)
 	nb_u = (nx - 1) * ny * sizeof(Float);
 	nb_v = (ny - 1) * nx * sizeof(Float);
 	nb_s = nx * ny * sizeof(Float);
-	nb_is_solid = nx * ny * sizeof(bool);
+	nb_is_solid = nx * ny * sizeof(Int);
 }
 
 Results::~Results()
@@ -25,14 +25,14 @@ Results::~Results()
 	}
 }
 
-void Results::AddSnapshot(Float* u, Float* v, Float* p, Float* s, bool* is_solid, Float time_stamp)
+void Results::AddSnapshot(Float* u, Float* v, Float* p, Float* s, Int* is_solid, Float time_stamp)
 {
 	// allocate memory
 	Float* p_copy = (Float*)malloc(nb_p);
 	Float* u_copy = (Float*)malloc(nb_u);
 	Float* v_copy = (Float*)malloc(nb_v);
 	Float* s_copy = (Float*)malloc(nb_s);
-	bool* is_solid_copy = (bool*)malloc(nb_is_solid);
+	Int* is_solid_copy = (Int*)malloc(nb_is_solid);
 
 	// copy over the data from the simulatin
 	memcpy(p_copy, p, nb_p);

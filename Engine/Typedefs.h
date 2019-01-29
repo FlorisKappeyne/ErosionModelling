@@ -104,6 +104,10 @@ inline QF mm_blend(QF a, QF b, QF mask)
 {
 	return _mm256_blendv_pd(a, b, mask);
 }
+inline QI mm_cmpeq(QI lhs, QI rhs)
+{
+	return _mm256_cmpeq_epi64(lhs, rhs);
+}
 
 
 // error allowance
@@ -184,6 +188,10 @@ inline QF mm_blend(QF a, QF b, QF mask)
 {
 	return _mm_blendv_ps(a, b, mask);
 }
+inline QI mm_cmpeq(QI lhs, QI rhs)
+{
+	return _mm_cmpeq_epi32(lhs, rhs);
+}
 
 // error allowance
 static constexpr Float kEpsilon = 1e-4f;
@@ -205,6 +213,10 @@ inline QF operator+(QF lhs, QF rhs)
 inline QF operator-(QF lhs, QF rhs)
 {
 	return mm_sub(lhs, rhs);
+}
+inline QI operator==(QI lhs, QI rhs)
+{
+	return mm_cmpeq(lhs, rhs);
 }
 inline QF mm_abs(QF x) {
 	static const QF sign_mask = mm_set(-Float(0)); // -0.f = 1 << 31

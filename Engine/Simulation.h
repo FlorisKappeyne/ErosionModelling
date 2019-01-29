@@ -42,7 +42,7 @@ private:
 	Float* u, *un;
 	Float* v, *vn;
 	Float* s;
-	bool* is_solid;
+	Int* state;
 
 	// erosion variables
 	bool erosionmode;
@@ -76,6 +76,8 @@ private:
 	Float erosion_percentile;
 	int niter_jacobi;
 	bool do_cavity_flow;
+	const Int kSolid; // 0b11111...111
+	const Int kFluid; // 0b00000...000
 
 	// quadfloat precalculations
 	const QF viscosity_qf;
@@ -86,8 +88,8 @@ private:
 	const QF dx2_qf, dy2_qf;
 	QF dt_qf;
 
-	const QI ones;
-	const QI zeros;
+	const QI kSolidQF;
+	const QI kFluidQF;
 	const QF kTwoQF;
 	const QF kOneQF;
 	const QF kZeroQF;
