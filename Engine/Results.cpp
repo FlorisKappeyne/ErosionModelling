@@ -3,13 +3,14 @@
 
 Results::Results(Params& params)
 	:
-	params(params),
-	nb_p(params.nx * params.ny * sizeof(Float)),
-	nb_u((params.nx - 1) * params.ny * sizeof(Float)),
-	nb_v((params.ny - 1) * params.nx * sizeof(Float)),
-	nb_s(params.nx * params.ny * sizeof(Float)),
-	nb_is_solid(params.nx * params.ny * sizeof(bool))
+	params(params)
 {
+	int nx = params.nx + 2, ny = params.ny + 2;
+	nb_p = nx * ny * sizeof(Float);
+	nb_u = (nx - 1) * ny * sizeof(Float);
+	nb_v = (ny - 1) * nx * sizeof(Float);
+	nb_s = nx * ny * sizeof(Float);
+	nb_is_solid = nx * ny * sizeof(bool);
 }
 
 Results::~Results()
@@ -26,18 +27,21 @@ Results::~Results()
 
 void Results::AddSnapshot(Float* u, Float* v, Float* p, Float* s, bool* is_solid, Float time_stamp)
 {
+	// allocate memory
 	Float* p_copy = (Float*)malloc(nb_p);
 	Float* u_copy = (Float*)malloc(nb_u);
 	Float* v_copy = (Float*)malloc(nb_v);
 	Float* s_copy = (Float*)malloc(nb_s);
 	bool* is_solid_copy = (bool*)malloc(nb_is_solid);
 
+	// copy over the data from the simulatin
 	memcpy(p_copy, p, nb_p);
 	memcpy(u_copy, u, nb_u);
 	memcpy(v_copy, v, nb_v);
 	memcpy(s_copy, s, nb_s);
 	memcpy(is_solid_copy, is_solid, nb_is_solid);
 
+	// store that data long term
 	buf_p.push_back(p_copy);
 	buf_u.push_back(u_copy);
 	buf_v.push_back(v_copy);
@@ -48,13 +52,15 @@ void Results::AddSnapshot(Float* u, Float* v, Float* p, Float* s, bool* is_solid
 
 void Results::OuputToFile(const std::string& file_name)
 {
-	std::ofstream out_file = std::ofstream(file_name);
+	std::ofstream out_file = std::ofstream(file_name, std::ios::binary);
 
 	/*
 	buffer file contents:
 
 	sizeof(Float)
+	sizeof(int)
 	sizeof(bool)
+	0
 	size of params.file_name_input
 	params.file_name_input
 	size of params.file_name_output
@@ -62,6 +68,7 @@ void Results::OuputToFile(const std::string& file_name)
 	params.viscosity
 	...
 	params.niter_jacobi
+	num_snapshots
 	all pressure buffers (nb_p * buf_p.size())
 	all u buffers (nb_u * buf_p.size())
 	...
@@ -70,16 +77,19 @@ void Results::OuputToFile(const std::string& file_name)
 	*/
 
 	int size_of_Float = sizeof(Float);
+	int size_of_int = sizeof(int);
 	int size_of_bool = sizeof(bool);
 
-	out_file.write((char*)&size_of_Float, sizeof(int));
-	out_file.write((char*)&size_of_bool, sizeof(int));
+	out_file.write((char*)&size_of_Float, 1);
+	out_file.write((char*)&size_of_int, 1);
+	out_file.write((char*)&size_of_bool, 1);
+	out_file.write("\0", 1); // 4 byte alignment
 
-	int size_of_input = params.file_name_input.size() + 1;
+	int size_of_input = params.file_name_input.size();
 	out_file.write((char*)&size_of_input, sizeof(int));
 	out_file.write(params.file_name_input.c_str(), size_of_input);
 
-	int size_of_output = params.file_name_output.size() + 1;
+	int size_of_output = params.file_name_output.size();
 	out_file.write((char*)&size_of_output, sizeof(int));
 	out_file.write(params.file_name_output.c_str(), size_of_output);
 
@@ -99,6 +109,9 @@ void Results::OuputToFile(const std::string& file_name)
 	out_file.write((char*)&params.outlet_pressure, sizeof(Float));
 	out_file.write((char*)&params.erosion_percentile, sizeof(Float));
 	out_file.write((char*)&params.niter_jacobi, sizeof(int));
+
+	int num_snapshots = buf_p.size();
+	out_file.write((char*)&num_snapshots, sizeof(int));
 
 	for (int i = 0; i < buf_p.size(); ++i)
 	{

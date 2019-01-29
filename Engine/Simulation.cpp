@@ -761,10 +761,9 @@ void Simulation::CalculateShearStress()
 void Simulation::ErodeGeometry()
 {
 	int count = 0;
-
-	for (int x = 1; x < nx - 1; ++x)
+	for (int y = 1; y < ny - 1; ++y)	
 	{
-		for (int y = 1; y < ny - 1; ++y)
+		for (int x = 1; x < nx - 1; ++x)
 		{
 			if (s[IndexP(x, y)] > 0)
 			{
@@ -782,9 +781,9 @@ void Simulation::ErodeGeometry()
 		int posx = 0;
 		int posy = 0;
 
-		for (int x = 1; x < nx - 1; ++x)
+		for (int y = 1; y < ny - 1; ++y)		
 		{
-			for (int y = 1; y < ny - 1; ++y)
+			for (int x = 1; x < nx - 1; ++x)
 			{
 				if (s[IndexP(x, y)] > max_stress)
 				{
@@ -809,13 +808,14 @@ void Simulation::Sedimentate()
 		int posx = 0;
 		int posy = 0;
 
-		for (int x = 1; x < nx - 1; ++x)
+		for (int y = 1; y < ny - 1; ++y)
 		{
-			for (int y = 1; y < ny - 1; ++y)
+			for (int x = 1; x < nx - 1; ++x)
 			{
-				if (!is_solid[IndexP(x, y)] && Vec2((v[IndexV(x, y)] + v[IndexV(x, y - 1)]) / 2, (u[IndexU(x, y)] + u[IndexU(x - 1, y)]) / 2).Magnitude() < min_mag)
+				Float mag = Vec2((u[IndexU(x, y)] + u[IndexU(x - 1, y)]) / 2, (v[IndexV(x, y)] + v[IndexV(x, y - 1)]) / 2).Magnitude();
+				if (!is_solid[IndexP(x, y)] && mag < min_mag)
 				{
-					min_mag = Vec2((v[IndexV(x, y)] + v[IndexV(x, y - 1)]) / 2, (u[IndexU(x, y)] + u[IndexU(x - 1, y)]) / 2).Magnitude();
+					min_mag = mag;
 					posx = x;
 					posy = y;
 				}
