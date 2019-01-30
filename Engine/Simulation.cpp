@@ -206,7 +206,7 @@ void Simulation::Draw()
 
 			min_u = std::min(min_u, avg_u);
 			max_u = std::max(max_u, avg_u);
-															
+
 			min_u = std::min(min_u, avg_v);
 			max_u = std::max(max_u, avg_v);
 		}
@@ -229,7 +229,7 @@ void Simulation::Draw()
 
 			Color res =
 				(Cell::uc1 * (max_u - speed_u) * inv_delta_u) +
-				Cell::uc2 * ((speed_u - min_u) * inv_delta_u) + 
+				Cell::uc2 * ((speed_u - min_u) * inv_delta_u) +
 				(Cell::vc1 * (max_u - speed_v) * inv_delta_u) +
 				Cell::vc2 * ((speed_v - min_u) * inv_delta_u);
 			gfx.PutPixel(x, ny * 2 - y - 1, res); // left bottom
@@ -309,7 +309,7 @@ void Simulation::Draw()
 	OutputDebugStringA(("Min vel = " + std::to_string(min_mag) + ", max vel = " + std::to_string(max_mag) + "\n").c_str());
 	OutputDebugStringA(("Min stress = " + std::to_string(min_stress) + ", max stress = " + std::to_string(max_stress) + "\n").c_str());
 	OutputDebugStringA(("time passed = " + std::to_string(time_passed) + ", dt = " + std::to_string(dt) + "\n").c_str());
-	if (erosionmode) 
+	if (erosionmode)
 	{
 		OutputDebugStringA(("Time until erosion = " + std::to_string(time_until_erosion)).c_str());
 	}
@@ -354,7 +354,7 @@ void Simulation::InitField(const std::string& file_name)
 				for (int x = 0; x < width; ++x, ++img_idx)
 				{
 					int idx = IndexP(x + 1, y + 1);
-					int color = ((int*)data)[img_idx];
+					int color = ((int*)data)[y * width + width - x - 1];
 					//color = color >> 8; // shift out the alpha value
 					// r-g-b-a
 					if (color == 0xffffffff)
@@ -444,7 +444,7 @@ void Simulation::ResetEdges()
 
 		for (int y = 1; y < ny - 1; ++y)
 		{
-			if (state[IndexP(1, y)] && y0 != -1)
+			if (state[IndexP(nx - 2, y)] == kSolid && y0 != -1)
 			{
 				// < y for staggered
 				for (int y1 = y0; y1 < y; y1++)
@@ -453,24 +453,24 @@ void Simulation::ResetEdges()
 					Float two_r = 2 * y1 - 2 * y0 - a + 1;
 					Float s = (1 - two_r * two_r / (a * a));
 
-					u[IndexU(0, y1)] = inlet_velocity * s;
+					u[IndexU(nx - 2, y1)] = -inlet_velocity * s;
 				}
 
 				y0 = -1;
 			}
-			else if (state[IndexP(1, y)])
+			else if (state[IndexP(nx - 2, y)] == kSolid)
 			{
-				u[IndexU(0, y)] = kZeroF;
+				u[IndexU(nx - 2, y)] = kZeroF;
 			}
 			else if (y0 == -1)
 			{
 				y0 = y;
 			}
-			
-			p[IndexP(0, y)] = p[IndexP(1, y)];
+
+			p[IndexP(0, y)] = outlet_pressure;
 			v[IndexV(0, y)] = kZeroF;
 
-			p[IndexP(nx - 1, y)] = outlet_pressure;
+			p[IndexP(nx - 1, y)] = p[IndexP(nx - 2, y)];
 			u[IndexU(nx - 2, y)] = u[IndexU(nx - 3, y)];
 			v[IndexV(nx - 1, y)] = v[IndexV(nx - 2, y)];
 		}
@@ -662,7 +662,7 @@ void Simulation::UpdateErosionProcess()
 		ResetBoundaryConditions();
 		CalculateShearStress();
 
-		if (erosionmode) 
+		if (erosionmode)
 		{
 			ErodeGeometry();
 			erosionmode = !erosionmode;
@@ -700,34 +700,18 @@ void Simulation::CalculateShearStress()
 	{
 		for (int x = 1; x < nx - 1; ++x)
 		{
-			if (state[IndexP(x, y)] == kFluid)
+			int idx = IndexP(x, y);
+
+			if (state[idx] == kFluid)
 			{
 				continue;
 			}
 
-			Float stress = kZeroF;
-
-			if (state[IndexP(x - 1, y)] == kFluid)
-			{
-				stress = std::max(stress, Abs(v[IndexV(x - 1, y)] - v[IndexV(x - 1, y - 1)]));
-			}
-			
-			if (state[IndexP(x + 1, y)] == kFluid)
-			{
-				stress = std::max(stress, Abs(v[IndexV(x + 1, y)] - v[IndexV(x + 1, y - 1)]));
-			}
-
-			if (state[IndexP(x, y - 1)] == kFluid)
-			{
-				stress = std::max(stress, Abs(u[IndexU(x, y - 1)] - u[IndexU(x - 1, y - 1)]));
-			}
-			
-			if (state[IndexP(x, y + 1)] == kFluid)
-			{
-				stress = std::max(stress, Abs(u[IndexU(x, y + 1)] - u[IndexU(x - 1, y + 1)]));
-			}
-
-			s[IndexP(x, y)] = stress;
+			s[idx] = kZeroF;
+			s[idx] += Abs(v[IndexV(x - 1, y)]) + Abs(v[IndexV(x - 1, y - 1)]);
+			s[idx] += Abs(v[IndexV(x + 1, y)]) + Abs(v[IndexV(x + 1, y - 1)]);
+			s[idx] += Abs(u[IndexU(x, y - 1)]) + Abs(u[IndexU(x - 1, y - 1)]);
+			s[idx] += Abs(u[IndexU(x, y + 1)]) + Abs(u[IndexU(x - 1, y + 1)]);
 		}
 	}
 }
@@ -735,7 +719,7 @@ void Simulation::CalculateShearStress()
 void Simulation::ErodeGeometry()
 {
 	int count = 0;
-	for (int y = 1; y < ny - 1; ++y)	
+	for (int y = 1; y < ny - 1; ++y)
 	{
 		for (int x = 1; x < nx - 1; ++x)
 		{
@@ -755,7 +739,7 @@ void Simulation::ErodeGeometry()
 		int posx = 0;
 		int posy = 0;
 
-		for (int y = 1; y < ny - 1; ++y)		
+		for (int y = 1; y < ny - 1; ++y)
 		{
 			for (int x = 1; x < nx - 1; ++x)
 			{
@@ -797,6 +781,10 @@ void Simulation::Sedimentate()
 		}
 
 		state[IndexP(posx, posy)] = kSolid;
+		u[IndexU(posx - 1, posy)] = kZeroF;
+		u[IndexU(posx, posy)] = kZeroF;
+		v[IndexV(posx, posy - 1)] = kZeroF;
+		v[IndexV(posx, posy)] = kZeroF;
 		p[IndexP(posx, posy)] = kZeroF;
 	}
 }

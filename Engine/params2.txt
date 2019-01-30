@@ -14,5 +14,5 @@ field_size_y=1000.0;
 lid_speed=1.0;
 inlet_velocity=1.4;
 outlet_pressure=0.0;
-erosion_percentile=0.05;0.1;0.2;
+erosion_percentile=0.2;
 niter_jacobi=40;

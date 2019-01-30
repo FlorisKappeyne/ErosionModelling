@@ -53,7 +53,7 @@ void Game::UpdateModel()
 	{
 		sim->Step();
 
-		if (sim->GetTimePassed() > 300.0f)
+		if (sim->GetTimePassed() > 3000.0f)
 		{
 			// dump results of this simulation
 			sim->CreateSnapshot(*results);
