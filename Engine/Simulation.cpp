@@ -663,7 +663,7 @@ void Simulation::UpdateErosionProcess()
 		}
 		else
 		{
-			//Sedimentate();
+			Sedimentate();
 			erosionmode = !erosionmode;
 		}
 
@@ -746,9 +746,14 @@ void Simulation::ErodeGeometry()
 			}
 		}
 
-		state[IndexP(posx, posy)] = kFluid;
 		s[IndexP(posx, posy)] = kZeroF;
+
+		state[IndexP(posx, posy)] = kFluid;
 		p[IndexP(posx, posy)] = kZeroF;
+		u[IndexU(posx - 1, posy)] = kZeroF;
+		u[IndexU(posx, posy)] = kZeroF;
+		v[IndexV(posx, posy - 1)] = kZeroF;
+		v[IndexV(posx, posy)] = kZeroF;
 	}
 }
 

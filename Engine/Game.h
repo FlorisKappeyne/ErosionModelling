@@ -51,7 +51,7 @@ private:
 	int steps_per_frame;
 
 	Float next_snapshot_time;
-	static constexpr Float time_between_snapshots = Float(5.0f);
+	static constexpr Float time_between_snapshots = Float(50.0f);
 	Simulation* sim;
 	Results* results;
 };
