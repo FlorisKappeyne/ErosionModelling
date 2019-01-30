@@ -95,11 +95,6 @@ private:
 	const QF kZeroQF;
 
 	// graphics
-	Float min_mag;
-	Float max_mag;
-	Float min_p;
-	Float max_p;
-	bool drawing_vars_initialized;
 	Graphics& gfx;
 
 	static constexpr bool visualize_stress_rt = true;

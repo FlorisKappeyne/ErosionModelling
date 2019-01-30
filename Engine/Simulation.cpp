@@ -65,12 +65,7 @@ Simulation::Simulation(Graphics& gfx, Params& params)
 	kOneQF(mm_set(kOneF)),
 	kZeroQF(mm_set(kZeroF)),
 
-	// graphics vars
-	min_mag(kZeroF),
-	max_mag(kZeroF),
-	min_p(kZeroF),
-	max_p(kZeroF),
-	drawing_vars_initialized(false),
+	// graphics
 	gfx(gfx)
 {
 	p = (Float*)_aligned_malloc(nc * sizeof(Float), 64);
@@ -145,17 +140,8 @@ void Simulation::Step()
 
 void Simulation::Draw()
 {
-	// plot magnitude of u
-	if (drawing_vars_initialized == false)
-	{
-		min_mag = Vec2(u[0], v[0]).Magnitude();
-		max_mag = min_mag;
-
-		min_p = p[0];
-		max_p = min_p;
-
-		drawing_vars_initialized = true;
-	}
+	Float min_mag = Vec2(u[0], v[0]).Magnitude();
+	Float max_mag = min_mag;
 
 	for (int y = 1; y < ny - 1; ++y)
 	{
@@ -276,6 +262,8 @@ void Simulation::Draw()
 	}
 
 	// plot pressure
+	Float min_p = p[0];
+	Float max_p = min_p;
 	for (int y = 1; y < ny - 1; ++y)
 	{
 		for (int x = 1; x < nx - 1; ++x)
@@ -354,7 +342,7 @@ void Simulation::InitField(const std::string& file_name)
 				for (int x = 0; x < width; ++x, ++img_idx)
 				{
 					int idx = IndexP(x + 1, y + 1);
-					int color = ((int*)data)[y * width + width - x - 1];
+					int color = ((int*)data)[img_idx];
 					//color = color >> 8; // shift out the alpha value
 					// r-g-b-a
 					if (color == 0xffffffff)
@@ -384,11 +372,16 @@ void Simulation::ResetBoundaryConditions()
 		for (int x = 1; x < nx - 1; ++x)
 		{
 			const int idx = IndexP(x, y);
+
+			// if all states are solid, the eq mask will be 0xfffffff...fff, which is -1 in an int
+			QI eq = mm_cmpeq(*(QI*)&state[idx], kFluidQF);
+			if ((((Int*)&eq)[0] + ((Int*)&eq)[1] + ((Int*)&eq)[2] + ((Int*)&eq)[3]) == -4)
+				continue;
+			//if (*(int32*)&state[idx] == 0)
+			//	continue;
+
 			const int idx_u = IndexU(x, y);
 			const int idx_v = IndexV(x, y);
-
-			if (*(int*)&state[idx] == 0)
-				continue;
 
 			const QI mask = *(QI*)&state[idx];
 
@@ -444,7 +437,7 @@ void Simulation::ResetEdges()
 
 		for (int y = 1; y < ny - 1; ++y)
 		{
-			if (state[IndexP(nx - 2, y)] == kSolid && y0 != -1)
+			if (state[IndexP(1, y)] == kSolid && y0 != -1)
 			{
 				// < y for staggered
 				for (int y1 = y0; y1 < y; y1++)
@@ -453,24 +446,24 @@ void Simulation::ResetEdges()
 					Float two_r = 2 * y1 - 2 * y0 - a + 1;
 					Float s = (1 - two_r * two_r / (a * a));
 
-					u[IndexU(nx - 2, y1)] = -inlet_velocity * s;
+					u[IndexU(0, y1)] = inlet_velocity * s;
 				}
 
 				y0 = -1;
 			}
-			else if (state[IndexP(nx - 2, y)] == kSolid)
+			else if (state[IndexP(1, y)] == kSolid)
 			{
-				u[IndexU(nx - 2, y)] = kZeroF;
+				u[IndexU(0, y)] = kZeroF;
 			}
 			else if (y0 == -1)
 			{
 				y0 = y;
 			}
 
-			p[IndexP(0, y)] = outlet_pressure;
+			p[IndexP(0, y)] = p[IndexP(1, y)];
 			v[IndexV(0, y)] = kZeroF;
 
-			p[IndexP(nx - 1, y)] = p[IndexP(nx - 2, y)];
+			p[IndexP(nx - 1, y)] = outlet_pressure;
 			u[IndexU(nx - 2, y)] = u[IndexU(nx - 3, y)];
 			v[IndexV(nx - 1, y)] = v[IndexV(nx - 2, y)];
 		}
@@ -497,19 +490,20 @@ void Simulation::UpdateVelocities()
 				continue;
 			//if (*(int32*)&state[idx] == 0x01010101)
 			//	continue;
+
 			const int idx_u = IndexU(x, y);
 			const int idx_v = IndexV(x, y);
 
 			const QF u_center = *(QF*)&un[idx_u];
 			const QF u_left = *(QF*)&un[idx_u - 1];
 			const QF u_right = *(QF*)&un[idx_u + 1];
-			const QF u_down = *(QF*)&un[idx_u - nx + 1];
-			const QF u_up = *(QF*)&un[idx_u + nx - 1];
+			const QF u_down = *(QF*)&un[idx_u - (nx - 1)];
+			const QF u_up = *(QF*)&un[idx_u + (nx - 1)];
 			const QF avg_v = Average4(
-				*(QF*)&vn[idx_v - 1],
-				*(QF*)&vn[idx_v],
-				*(QF*)&vn[idx_v + nx - 1],
-				*(QF*)&vn[idx_v + nx]);
+				*(QF*)&vn[idx_v], // top left
+				*(QF*)&vn[idx_v + 1], // top right
+				*(QF*)&vn[idx_v - nx], // bottom left
+				*(QF*)&vn[idx_v - nx + 1]); // bottom right
 
 			const QF v_center = *(QF*)&vn[idx_v];
 			const QF v_left = *(QF*)&vn[idx_v - 1];
@@ -517,10 +511,10 @@ void Simulation::UpdateVelocities()
 			const QF v_down = *(QF*)&vn[idx_v - nx];
 			const QF v_up = *(QF*)&vn[idx_v + nx];
 			const QF avg_u = Average4(
-				*(QF*)&un[idx_u - 1],
-				*(QF*)&un[idx_u],
-				*(QF*)&un[idx_u + nx - 1],
-				*(QF*)&un[idx_u + nx]);
+				*(QF*)&un[idx_u - 1], // bottom left
+				*(QF*)&un[idx_u], // b9ottom right
+				*(QF*)&un[idx_u + (nx - 1) - 1], // top left
+				*(QF*)&un[idx_u + (nx - 1)]); // top right
 
 			// precalculate the gradients
 			Vec2T<QF> u_gradient = Gradient(u_left, u_right, u_down, u_up);
@@ -669,7 +663,7 @@ void Simulation::UpdateErosionProcess()
 		}
 		else
 		{
-			Sedimentate();
+			//Sedimentate();
 			erosionmode = !erosionmode;
 		}
 
@@ -781,11 +775,11 @@ void Simulation::Sedimentate()
 		}
 
 		state[IndexP(posx, posy)] = kSolid;
+		p[IndexP(posx, posy)] = kZeroF;
 		u[IndexU(posx - 1, posy)] = kZeroF;
 		u[IndexU(posx, posy)] = kZeroF;
 		v[IndexV(posx, posy - 1)] = kZeroF;
 		v[IndexV(posx, posy)] = kZeroF;
-		p[IndexP(posx, posy)] = kZeroF;
 	}
 }
 
