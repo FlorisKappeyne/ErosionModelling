@@ -206,18 +206,47 @@ void Simulation::Draw()
 			int idx = y * nx + x;
 			if (state[idx] == -1)
 			{
-				gfx.PutPixel(x, ny * 2 - y - 1, Colors::Blue * 0.3f);
+				gfx.PutPixel(x, ny * 2 - y - 1, Colors::Gray * 0.3f);
 				continue;
 			}
 
 			Float speed_u = (u[IndexU(x - 1, y)] + u[IndexU(x, y)]) / kTwoF;
 			Float speed_v = (v[IndexV(x, y - 1)] + v[IndexV(x, y)]) / kTwoF;
 
-			Color res =
-				(Cell::uc1 * (max_u - speed_u) * inv_delta_u) +
-				Cell::uc2 * ((speed_u - min_u) * inv_delta_u) +
-				(Cell::vc1 * (max_u - speed_v) * inv_delta_u) +
-				Cell::vc2 * ((speed_v - min_u) * inv_delta_u);
+			Float angle = kZeroF;
+
+			if (speed_u == kZeroF) // special cases
+				angle = (speed_v > kZeroF) ? Float(90)
+				: (speed_v == kZeroF) ? kZeroF
+				: Float(270);
+			else if (speed_v == kZeroF) // special cases
+				angle = (speed_u >= kZeroF) ? kZeroF
+				: Float(180);
+			angle = Rad2Deg(Atan(speed_v / speed_u));
+			if (speed_u < kZeroF && speed_v < kZeroF) // quadrant III
+				angle = Float(180) + angle;
+			else if (speed_u < kZeroF) // quadrant II
+				angle = Float(180) + angle; // it actually substracts
+			else if (speed_v < kZeroF) // quadrant IV
+				angle = Float(270) + (Float(90) + angle); // it actually substracts
+
+			angle /= Float(360.0f);
+			angle *= Float(3.0f);
+
+			int index = (int)angle % 3;
+			Color arr[] = {Colors::Blue, Colors::Green, Colors::Red};
+
+			Color c1 = arr[index];
+			Color c2 = arr[(index + 1) % 3];
+			Float part = angle - (int)angle;
+
+			Float mag = Vec2(speed_u, speed_v).Magnitude();
+
+			Color res = (c1 * (kOneF - part) + c2 * (part)) * (mag / max_mag);
+				//(Cell::uc1 * (max_u - speed_u) * inv_delta_u) +
+				//Cell::uc2 * ((speed_u - min_u) * inv_delta_u) +
+				//(Cell::vc1 * (max_u - speed_v) * inv_delta_u) +
+				//Cell::vc2 * ((speed_v - min_u) * inv_delta_u);
 			gfx.PutPixel(x, ny * 2 - y - 1, res); // left bottom
 		}
 	}
@@ -320,11 +349,6 @@ void Simulation::CreateSnapshot(Results & res)
 
 void Simulation::InitField(const std::string& file_name)
 {
-	// choose between cavity flow or image
-	do_cavity_flow = file_name_input.empty();
-
-	if (do_cavity_flow == false)
-	{
 		// load an image
 		stbi_set_flip_vertically_on_load(true);
 
@@ -335,6 +359,7 @@ void Simulation::InitField(const std::string& file_name)
 		if (data != nullptr)
 		{
 			assert(width == 256 && height == 256);
+			do_cavity_flow = false;
 
 			int img_idx = 0;
 			for (int y = 0; y < height; ++y)
@@ -355,7 +380,10 @@ void Simulation::InitField(const std::string& file_name)
 			}
 			stbi_image_free(data);
 		}
-	}
+		else
+		{
+			do_cavity_flow = true;
+		}
 
 	// re-initialize the boundary conditions 
 	ResetBoundaryConditions();
